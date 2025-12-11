@@ -1,40 +1,28 @@
 // Olive Baby API - Email Service
 import nodemailer from 'nodemailer';
-import { config } from '../config';
+import { env } from '../config/env';
+import { logger } from '../config/logger';
 
-const transporter = nodemailer.createTransport({
-  host: config.smtp.host,
-  port: config.smtp.port,
-  secure: config.smtp.port === 465,
-  auth: {
-    user: config.smtp.user,
-    pass: config.smtp.pass
+// Criar transporter reutilizável
+function createTransporter() {
+  if (!env.SMTP_HOST || !env.SMTP_USER) {
+    return null;
   }
-});
 
-interface SendEmailOptions {
-  to: string;
-  subject: string;
-  html: string;
-  text?: string;
+  return nodemailer.createTransport({
+    host: env.SMTP_HOST,
+    port: env.SMTP_PORT,
+    secure: env.SMTP_PORT === 465,
+    auth: {
+      user: env.SMTP_USER,
+      pass: env.SMTP_PASS,
+    },
+  });
 }
 
-export async function sendEmail(options: SendEmailOptions): Promise<void> {
-  try {
-    await transporter.sendMail({
-      from: `"Olive Baby" <${config.smtp.from || config.smtp.user}>`,
-      to: options.to,
-      subject: options.subject,
-      html: options.html,
-      text: options.text || options.html.replace(/<[^>]*>/g, '')
-    });
-    console.log(`Email sent to ${options.to}`);
-  } catch (error) {
-    console.error('Error sending email:', error);
-    throw error;
-  }
-}
-
+/**
+ * Envia convite para profissional
+ */
 export async function sendProfessionalInvite(data: {
   professionalEmail: string;
   professionalName: string;
@@ -42,146 +30,157 @@ export async function sendProfessionalInvite(data: {
   babyName: string;
   inviteToken: string;
   role: string;
-}): Promise<void> {
-  const activationUrl = `${config.frontendUrl}/activate-professional?token=${data.inviteToken}`;
-  
-  const roleLabels: Record<string, string> = {
-    PEDIATRICIAN: 'Pediatra',
-    OBGYN: 'Obstetra/Ginecologista',
-    LACTATION_CONSULTANT: 'Consultora de Amamentação',
-    OTHER: 'Especialista'
-  };
+}) {
+  const transporter = createTransporter();
+  if (!transporter) {
+    logger.warn('SMTP not configured, skipping professional invite email');
+    return;
+  }
 
-  const roleLabel = roleLabels[data.role] || data.role;
+  const activationUrl = `${env.FRONTEND_URL}/activate-professional?token=${data.inviteToken}`;
 
   const html = `
     <!DOCTYPE html>
     <html>
     <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Convite Olive Baby</title>
+      <meta charset="UTF-8">
       <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f5f5; }
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
         .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .card { background: white; border-radius: 16px; padding: 40px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
-        .logo { text-align: center; margin-bottom: 30px; }
-        .logo h1 { color: #65a30d; margin: 0; font-size: 28px; }
-        .logo span { color: #84cc16; }
-        h2 { color: #333; margin-top: 0; }
-        .highlight { background: #f0fdf4; padding: 20px; border-radius: 12px; margin: 20px 0; border-left: 4px solid #65a30d; }
-        .button { display: inline-block; background: linear-gradient(135deg, #65a30d 0%, #84cc16 100%); color: white; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: 600; margin: 20px 0; }
-        .button:hover { opacity: 0.9; }
-        .info { background: #fafafa; padding: 15px; border-radius: 8px; margin: 15px 0; }
-        .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
-        .expire { color: #dc2626; font-size: 14px; }
+        .header { background: #4CAF50; color: white; padding: 20px; border-radius: 5px 5px 0 0; }
+        .content { background: #f9f9f9; padding: 20px; border: 1px solid #ddd; border-top: none; }
+        .button { display: inline-block; padding: 12px 24px; background: #4CAF50; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+        .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
       </style>
     </head>
     <body>
       <div class="container">
-        <div class="card">
-          <div class="logo">
-            <h1>🌿 Olive <span>Baby</span></h1>
-          </div>
-          
-          <h2>Olá, ${data.professionalName}!</h2>
-          
-          <p>Você foi convidado(a) por <strong>${data.caregiverName}</strong> para acompanhar o desenvolvimento de <strong>${data.babyName}</strong> na plataforma Olive Baby.</p>
-          
-          <div class="highlight">
-            <p><strong>📋 Função:</strong> ${roleLabel}</p>
-            <p style="margin-bottom: 0;"><strong>👶 Bebê:</strong> ${data.babyName}</p>
-          </div>
-          
-          <p>Com o Olive Baby, você terá acesso a:</p>
-          <ul>
-            <li>📊 Estatísticas de alimentação, sono e rotinas</li>
-            <li>📈 Gráficos de crescimento</li>
-            <li>🎯 Marcos do desenvolvimento</li>
-            <li>📝 Histórico completo de registros</li>
-          </ul>
-          
-          <div style="text-align: center;">
-            <a href="${activationUrl}" class="button">Ativar Minha Conta</a>
-          </div>
-          
-          <p class="expire">⏰ Este convite expira em 7 dias.</p>
-          
-          <div class="info">
-            <p style="margin: 0; font-size: 14px;">Se você não esperava este convite, pode ignorar este email com segurança.</p>
-          </div>
+        <div class="header">
+          <h2>Convite para Acompanhar ${data.babyName}</h2>
         </div>
-        
+        <div class="content">
+          <p>Olá <strong>${data.professionalName}</strong>,</p>
+          <p><strong>${data.caregiverName}</strong> convidou você para acompanhar o desenvolvimento de <strong>${data.babyName}</strong> na plataforma Olive Baby.</p>
+          <p>Clique no botão abaixo para ativar sua conta e começar a acompanhar:</p>
+          <div style="text-align: center;">
+            <a href="${activationUrl}" class="button">Ativar Conta</a>
+          </div>
+          <p>Ou copie e cole este link no seu navegador:</p>
+          <p style="word-break: break-all; color: #666;">${activationUrl}</p>
+          <p><strong>Importante:</strong> Este link expira em 7 dias.</p>
+        </div>
         <div class="footer">
-          <p>© ${new Date().getFullYear()} Olive Baby - Acompanhe o desenvolvimento do seu bebê</p>
-          <p>Este é um email automático, por favor não responda.</p>
+          <p>Olive Baby - Acompanhamento do desenvolvimento do seu bebê</p>
         </div>
       </div>
     </body>
     </html>
   `;
 
-  await sendEmail({
-    to: data.professionalEmail,
-    subject: `🌿 ${data.caregiverName} convidou você para acompanhar ${data.babyName} no Olive Baby`,
-    html
-  });
+  try {
+    await transporter.sendMail({
+      from: `"Olive Baby" <${env.SMTP_USER}>`,
+      to: data.professionalEmail,
+      subject: `Convite para acompanhar ${data.babyName}`,
+      html,
+    });
+
+    logger.info('Professional invite email sent', { email: data.professionalEmail });
+  } catch (error: any) {
+    logger.error('Failed to send professional invite email', { error: error.message });
+    throw error;
+  }
 }
 
-export async function sendPasswordResetEmail(data: {
-  email: string;
-  name: string;
-  resetToken: string;
-}): Promise<void> {
-  const resetUrl = `${config.frontendUrl}/reset-password?token=${data.resetToken}`;
+/**
+ * Envia alerta por email
+ */
+export async function sendAlert(data: {
+  level: 'info' | 'warning' | 'error' | 'critical';
+  title: string;
+  message: string;
+  component: string;
+  metadata?: Record<string, any>;
+}) {
+  if (!env.SMTP_HOST || !env.SMTP_USER) {
+    logger.warn('SMTP not configured, skipping alert email');
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: env.SMTP_HOST,
+    port: env.SMTP_PORT,
+    secure: env.SMTP_PORT === 465,
+    auth: {
+      user: env.SMTP_USER,
+      pass: env.SMTP_PASS,
+    },
+  });
+
+  const levelEmojis = {
+    info: 'ℹ️',
+    warning: '⚠️',
+    error: '❌',
+    critical: '🚨',
+  };
+
+  const levelColors = {
+    info: '#2196F3',
+    warning: '#FF9800',
+    error: '#F44336',
+    critical: '#D32F2F',
+  };
 
   const html = `
     <!DOCTYPE html>
     <html>
     <head>
-      <meta charset="utf-8">
-      <title>Redefinir Senha - Olive Baby</title>
+      <meta charset="UTF-8">
       <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f5f5; }
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
         .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .card { background: white; border-radius: 16px; padding: 40px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
-        .logo { text-align: center; margin-bottom: 30px; }
-        .logo h1 { color: #65a30d; margin: 0; font-size: 28px; }
-        .button { display: inline-block; background: linear-gradient(135deg, #65a30d 0%, #84cc16 100%); color: white; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: 600; margin: 20px 0; }
-        .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+        .header { background: ${levelColors[data.level]}; color: white; padding: 20px; border-radius: 5px 5px 0 0; }
+        .content { background: #f9f9f9; padding: 20px; border: 1px solid #ddd; border-top: none; }
+        .metadata { background: white; padding: 15px; margin-top: 15px; border-radius: 5px; }
+        .metadata pre { margin: 0; font-size: 12px; }
+        .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
       </style>
     </head>
     <body>
       <div class="container">
-        <div class="card">
-          <div class="logo">
-            <h1>🌿 Olive Baby</h1>
-          </div>
-          
-          <h2>Olá, ${data.name}!</h2>
-          
-          <p>Recebemos uma solicitação para redefinir sua senha. Clique no botão abaixo para criar uma nova senha:</p>
-          
-          <div style="text-align: center;">
-            <a href="${resetUrl}" class="button">Redefinir Senha</a>
-          </div>
-          
-          <p style="color: #dc2626; font-size: 14px;">⏰ Este link expira em 1 hora.</p>
-          
-          <p style="font-size: 14px; color: #666;">Se você não solicitou a redefinição de senha, ignore este email.</p>
+        <div class="header">
+          <h2>${levelEmojis[data.level]} ${data.title}</h2>
         </div>
-        
+        <div class="content">
+          <p><strong>Componente:</strong> ${data.component}</p>
+          <p><strong>Mensagem:</strong> ${data.message}</p>
+          ${data.metadata ? `
+            <div class="metadata">
+              <strong>Detalhes:</strong>
+              <pre>${JSON.stringify(data.metadata, null, 2)}</pre>
+            </div>
+          ` : ''}
+        </div>
         <div class="footer">
-          <p>© ${new Date().getFullYear()} Olive Baby</p>
+          <p>Olive Baby API - Sistema de Monitoramento</p>
+          <p>${new Date().toLocaleString('pt-BR')}</p>
         </div>
       </div>
     </body>
     </html>
   `;
 
-  await sendEmail({
-    to: data.email,
-    subject: '🔐 Redefinir sua senha - Olive Baby',
-    html
-  });
+  try {
+    await transporter.sendMail({
+      from: `"Olive Baby Monitor" <${env.SMTP_USER}>`,
+      to: env.ALERT_EMAIL || env.SMTP_USER,
+      subject: `[${data.level.toUpperCase()}] ${data.title}`,
+      html,
+    });
+
+    logger.info('Alert email sent', { level: data.level, component: data.component });
+  } catch (error: any) {
+    logger.error('Failed to send alert email', { error: error.message });
+    throw error;
+  }
 }

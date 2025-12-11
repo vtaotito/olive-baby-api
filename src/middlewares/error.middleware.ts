@@ -1,72 +1,110 @@
 // Olive Baby API - Error Middleware
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../utils/errors/AppError';
-import { isDevelopment } from '../config/env';
-import { ApiResponse } from '../types';
+import { logger } from '../config/logger';
+import { monitoringService } from '../services/monitoring.service';
+import { ZodError } from 'zod';
 
-export function errorMiddleware(
-  error: Error,
-  req: Request,
-  res: Response<ApiResponse>,
-  next: NextFunction
-): void {
-  // Log do erro
-  if (isDevelopment) {
-    console.error('❌ Error:', error);
-  } else {
-    console.error('❌ Error:', error.message);
-  }
-
-  // AppError (erros controlados)
-  if (error instanceof AppError) {
-    res.status(error.statusCode).json({
-      success: false,
-      message: error.message,
-      errors: error.errors,
-      ...(isDevelopment && { stack: error.stack }),
-    });
-    return;
-  }
-
-  // Prisma errors
-  if (error.name === 'PrismaClientKnownRequestError') {
-    const prismaError = error as any;
-    
-    if (prismaError.code === 'P2002') {
-      // Unique constraint violation
-      const target = prismaError.meta?.target as string[] | undefined;
-      res.status(409).json({
-        success: false,
-        message: `Registro duplicado: ${target?.join(', ') || 'campo único'}`,
-      });
-      return;
-    }
-
-    if (prismaError.code === 'P2025') {
-      // Record not found
-      res.status(404).json({
-        success: false,
-        message: 'Registro não encontrado',
-      });
-      return;
-    }
-  }
-
-  // Erro genérico
-  res.status(500).json({
-    success: false,
-    message: isDevelopment ? error.message : 'Erro interno do servidor',
-    ...(isDevelopment && { stack: error.stack }),
-  });
-}
-
+/**
+ * Middleware para rotas não encontradas
+ */
 export function notFoundMiddleware(
   req: Request,
-  res: Response<ApiResponse>,
+  res: Response,
   next: NextFunction
 ): void {
-  res.status(404).json({
+  const error = new AppError(`Rota não encontrada: ${req.method} ${req.originalUrl}`, 404);
+  next(error);
+}
+
+/**
+ * Middleware centralizado de tratamento de erros
+ */
+export function errorMiddleware(
+  error: Error | AppError | ZodError,
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  // Registrar erro
+  monitoringService.recordError();
+
+  // Log do erro
+  if (error instanceof AppError) {
+    logger.warn('Application Error', {
+      message: error.message,
+      statusCode: error.statusCode,
+      stack: error.stack,
+      url: req.originalUrl,
+      method: req.method,
+    });
+
+    // Enviar alerta para erros críticos
+    if (error.statusCode >= 500) {
+      monitoringService.sendAlert({
+        level: 'error',
+        title: 'Application Error',
+        message: error.message,
+        component: 'api',
+        metadata: {
+          statusCode: error.statusCode,
+          url: req.originalUrl,
+          method: req.method,
+        },
+      });
+    }
+
+    return res.status(error.statusCode).json({
+      success: false,
+      message: error.message,
+      ...(process.env.NODE_ENV === 'development' && { stack: error.stack }),
+    });
+  }
+
+  // Erro de validação Zod
+  if (error instanceof ZodError) {
+    logger.warn('Validation Error', {
+      errors: error.errors,
+      url: req.originalUrl,
+      method: req.method,
+    });
+
+    return res.status(400).json({
+      success: false,
+      message: 'Erro de validação',
+      errors: error.errors.map((err) => ({
+        path: err.path.join('.'),
+        message: err.message,
+      })),
+    });
+  }
+
+  // Erro não tratado
+  logger.error('Unhandled Error', {
+    message: error.message,
+    stack: error.stack,
+    url: req.originalUrl,
+    method: req.method,
+  });
+
+  // Enviar alerta crítico
+  monitoringService.sendAlert({
+    level: 'critical',
+    title: 'Unhandled Error',
+    message: error.message,
+    component: 'api',
+    metadata: {
+      stack: error.stack,
+      url: req.originalUrl,
+      method: req.method,
+    },
+  });
+
+  res.status(500).json({
     success: false,
-    message: `Rota não encontrada: ${req.method} ${req.originalUrl}`,
+    message: process.env.NODE_ENV === 'production' 
+      ? 'Erro interno do servidor' 
+      : error.message,
+    ...(process.env.NODE_ENV === 'development' && { stack: error.stack }),
   });
 }

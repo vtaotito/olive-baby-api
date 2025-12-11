@@ -5,6 +5,7 @@ import * as professionalService from '../services/professional.service';
 import * as emailService from '../services/email.service';
 import { AppError } from '../utils/errors/AppError';
 import { AuthenticatedRequest } from '../types';
+import { logger } from '../config/logger';
 
 const prisma = new PrismaClient();
 
@@ -56,6 +57,11 @@ export async function getProfessional(req: AuthenticatedRequest, res: Response, 
 export async function inviteProfessional(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
     const babyId = parseInt(req.params.babyId);
+    
+    if (isNaN(babyId)) {
+      throw new AppError('ID do bebê inválido', 400);
+    }
+
     const caregiverId = await getCaregiverId(req.user!.userId);
     const { email, fullName, specialty, role, crmNumber, crmState, phone, notes } = req.body;
 
@@ -84,8 +90,8 @@ export async function inviteProfessional(req: AuthenticatedRequest, res: Respons
         inviteToken: result.inviteToken,
         role
       });
-    } catch (emailError) {
-      console.error('Error sending invite email:', emailError);
+    } catch (emailError: any) {
+      logger.error('Error sending invite email', { error: emailError.message });
       // Don't fail the request if email fails
     }
 
@@ -184,8 +190,8 @@ export async function resendInvite(req: AuthenticatedRequest, res: Response, nex
         inviteToken: result.inviteToken,
         role: 'PEDIATRICIAN' // Default, ideally get from babyProfessional
       });
-    } catch (emailError) {
-      console.error('Error sending invite email:', emailError);
+    } catch (emailError: any) {
+      logger.error('Error sending resend invite email', { error: emailError.message });
     }
 
     res.json({

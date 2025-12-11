@@ -8,6 +8,8 @@ import rateLimit from 'express-rate-limit';
 import { env, isDevelopment } from './config/env';
 import { connectDatabase, disconnectDatabase } from './config/database';
 import { errorMiddleware, notFoundMiddleware } from './middlewares/error.middleware';
+import { logger } from './config/logger';
+import { monitoringService } from './services/monitoring.service';
 import routes from './routes';
 
 // Criar aplicação Express
@@ -60,6 +62,36 @@ if (isDevelopment) {
   app.use(morgan('combined'));
 }
 
+// Middleware para tracking de requisições e erros
+app.use((req, res, next) => {
+  monitoringService.recordRequest();
+  next();
+});
+
+// Middleware para log de requisições
+app.use((req, res, next) => {
+  const start = Date.now();
+  
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    logger.info('HTTP Request', {
+      method: req.method,
+      url: req.url,
+      statusCode: res.statusCode,
+      duration: `${duration}ms`,
+      ip: req.ip,
+      userAgent: req.get('user-agent'),
+    });
+
+    // Registrar erro se status >= 400
+    if (res.statusCode >= 400) {
+      monitoringService.recordError();
+    }
+  });
+
+  next();
+});
+
 // ==========================================
 // Rotas
 // ==========================================
@@ -93,8 +125,18 @@ async function startServer(): Promise<void> {
     // Conectar ao banco de dados
     await connectDatabase();
 
+    // Iniciar monitoramento periódico
+    const { startHealthMonitoring } = require('./utils/monitoring');
+    startHealthMonitoring(60000); // A cada 1 minuto
+
     // Iniciar servidor
     app.listen(env.PORT, () => {
+      logger.info('Server started', {
+        port: env.PORT,
+        environment: env.NODE_ENV,
+        apiPrefix: env.API_PREFIX,
+      });
+
       console.log('🍼 ====================================');
       console.log('   OLIVE BABY API');
       console.log('🍼 ====================================');
@@ -102,9 +144,11 @@ async function startServer(): Promise<void> {
       console.log(`📍 Environment: ${env.NODE_ENV}`);
       console.log(`🔗 API: http://localhost:${env.PORT}${env.API_PREFIX}`);
       console.log(`❤️  Health: http://localhost:${env.PORT}/health`);
+      console.log(`📊 Monitoring: http://localhost:${env.PORT}${env.API_PREFIX}/monitoring/health`);
       console.log('🍼 ====================================');
     });
   } catch (error) {
+    logger.error('Failed to start server', { error });
     console.error('❌ Failed to start server:', error);
     process.exit(1);
   }

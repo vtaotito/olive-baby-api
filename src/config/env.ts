@@ -36,6 +36,13 @@ const envSchema = z.object({
   // Rate Limiting
   RATE_LIMIT_WINDOW_MS: z.string().default('900000').transform(Number),
   RATE_LIMIT_MAX: z.string().default('100').transform(Number),
+
+  // Logging
+  LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
+
+  // Monitoring & Alerts
+  ALERT_EMAIL: z.string().email().optional(),
+  ALERT_WEBHOOK_URL: z.string().url().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

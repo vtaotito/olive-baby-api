@@ -9,6 +9,7 @@ import growthRoutes from './growth.routes';
 import milestoneRoutes from './milestone.routes';
 import exportRoutes from './export.routes';
 import professionalRoutes, { babyProfessionalRouter } from './professional.routes';
+import monitoringRoutes from './monitoring.routes';
 
 const router = Router();
 
@@ -31,6 +32,7 @@ router.use('/growth', growthRoutes);
 router.use('/milestones', milestoneRoutes);
 router.use('/export', exportRoutes);
 router.use('/professionals', professionalRoutes);
+router.use('/monitoring', monitoringRoutes);
 
 // Baby-scoped professional routes
 router.use('/babies/:babyId/professionals', babyProfessionalRouter);
