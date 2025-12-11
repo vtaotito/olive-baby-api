@@ -44,7 +44,7 @@ export function authMiddleware(
 // Alias for authMiddleware
 export const authenticate = authMiddleware;
 
-// Require caregiver role
+// Require caregiver role (PARENT or CAREGIVER)
 export function requireCaregiver(
   req: AuthenticatedRequest,
   res: Response,
@@ -54,7 +54,8 @@ export function requireCaregiver(
     return next(AppError.unauthorized('Não autenticado'));
   }
 
-  if (!req.user.caregiver) {
+  const caregiverRoles = ['PARENT', 'CAREGIVER'];
+  if (!caregiverRoles.includes(req.user.role)) {
     return next(AppError.forbidden('Acesso restrito a cuidadores'));
   }
 

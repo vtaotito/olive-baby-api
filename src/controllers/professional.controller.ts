@@ -1,14 +1,29 @@
 // Olive Baby API - Professional Controller
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
+import { PrismaClient } from '@prisma/client';
 import * as professionalService from '../services/professional.service';
 import * as emailService from '../services/email.service';
 import { AppError } from '../utils/errors/AppError';
+import { AuthenticatedRequest } from '../types';
+
+const prisma = new PrismaClient();
+
+// Helper to get caregiverId from userId
+async function getCaregiverId(userId: number): Promise<number> {
+  const caregiver = await prisma.caregiver.findUnique({
+    where: { userId }
+  });
+  if (!caregiver) {
+    throw new AppError('Cuidador não encontrado', 404);
+  }
+  return caregiver.id;
+}
 
 // GET /babies/:babyId/professionals - List professionals for a baby
-export async function getProfessionals(req: Request, res: Response, next: NextFunction) {
+export async function getProfessionals(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
     const babyId = parseInt(req.params.babyId);
-    const caregiverId = req.user!.caregiver!.id;
+    const caregiverId = await getCaregiverId(req.user!.userId);
 
     const professionals = await professionalService.getProfessionalsByBaby(babyId, caregiverId);
 
@@ -22,7 +37,7 @@ export async function getProfessionals(req: Request, res: Response, next: NextFu
 }
 
 // GET /professionals/:id - Get professional details
-export async function getProfessional(req: Request, res: Response, next: NextFunction) {
+export async function getProfessional(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
     const professionalId = parseInt(req.params.id);
 
@@ -38,10 +53,10 @@ export async function getProfessional(req: Request, res: Response, next: NextFun
 }
 
 // POST /babies/:babyId/professionals/invite - Invite a professional
-export async function inviteProfessional(req: Request, res: Response, next: NextFunction) {
+export async function inviteProfessional(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
     const babyId = parseInt(req.params.babyId);
-    const caregiverId = req.user!.caregiver!.id;
+    const caregiverId = await getCaregiverId(req.user!.userId);
     const { email, fullName, specialty, role, crmNumber, crmState, phone, notes } = req.body;
 
     const result = await professionalService.inviteProfessional(
@@ -90,7 +105,7 @@ export async function inviteProfessional(req: Request, res: Response, next: Next
 }
 
 // POST /professionals/verify-token - Verify invite token
-export async function verifyInviteToken(req: Request, res: Response, next: NextFunction) {
+export async function verifyInviteToken(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
     const { token } = req.body;
 
@@ -114,7 +129,7 @@ export async function verifyInviteToken(req: Request, res: Response, next: NextF
 }
 
 // POST /professionals/activate - Activate professional account
-export async function activateProfessional(req: Request, res: Response, next: NextFunction) {
+export async function activateProfessional(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
     const { token, password, phone, city, state } = req.body;
 
@@ -148,17 +163,15 @@ export async function activateProfessional(req: Request, res: Response, next: Ne
 }
 
 // POST /babies/:babyId/professionals/:id/resend-invite - Resend invite
-export async function resendInvite(req: Request, res: Response, next: NextFunction) {
+export async function resendInvite(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
     const professionalId = parseInt(req.params.id);
     const babyId = parseInt(req.params.babyId);
-    const caregiverId = req.user!.caregiver!.id;
+    const caregiverId = await getCaregiverId(req.user!.userId);
 
     const result = await professionalService.resendInvite(professionalId, caregiverId);
 
     // Get baby name for email
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
     const baby = await prisma.baby.findUnique({ where: { id: babyId } });
 
     // Send invite email
@@ -185,10 +198,10 @@ export async function resendInvite(req: Request, res: Response, next: NextFuncti
 }
 
 // DELETE /babies/:babyId/professionals/:linkId - Remove professional from baby
-export async function removeProfessional(req: Request, res: Response, next: NextFunction) {
+export async function removeProfessional(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
     const linkId = parseInt(req.params.linkId);
-    const caregiverId = req.user!.caregiver!.id;
+    const caregiverId = await getCaregiverId(req.user!.userId);
 
     await professionalService.removeProfessionalFromBaby(linkId, caregiverId);
 
@@ -202,10 +215,10 @@ export async function removeProfessional(req: Request, res: Response, next: Next
 }
 
 // PATCH /babies/:babyId/professionals/:linkId - Update professional link
-export async function updateProfessionalLink(req: Request, res: Response, next: NextFunction) {
+export async function updateProfessionalLink(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
     const linkId = parseInt(req.params.linkId);
-    const caregiverId = req.user!.caregiver!.id;
+    const caregiverId = await getCaregiverId(req.user!.userId);
     const { notes, role } = req.body;
 
     const updated = await professionalService.updateProfessionalLink(
@@ -224,9 +237,9 @@ export async function updateProfessionalLink(req: Request, res: Response, next: 
 }
 
 // GET /professionals/my-patients - Get babies for professional (professional dashboard)
-export async function getMyPatients(req: Request, res: Response, next: NextFunction) {
+export async function getMyPatients(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
 
     const babies = await professionalService.getBabiesForProfessional(userId);
 
