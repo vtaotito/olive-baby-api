@@ -8,7 +8,7 @@ import { AppError } from '../utils/errors/AppError';
 
 // Schemas de validação
 export const statsQuerySchema = z.object({
-  range: z.enum(['7d', '14d', '30d', '90d']).optional().default('7d'),
+  range: z.enum(['24h', '7d', '14d', '30d', '90d']).optional().default('7d'),
 });
 
 export class StatsController {
@@ -32,6 +32,7 @@ export class StatsController {
       
       // Converter range para dias
       const daysMap: Record<string, number> = {
+        '24h': 1,
         '7d': 7,
         '14d': 14,
         '30d': 30,

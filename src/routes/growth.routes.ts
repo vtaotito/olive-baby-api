@@ -67,3 +67,41 @@ router.delete(
 );
 
 export default router;
+
+// ========================================
+// Baby-scoped Growth Router
+// For routes like /api/v1/babies/:babyId/growth
+// ========================================
+export const babyGrowthRouter = Router({ mergeParams: true });
+
+babyGrowthRouter.use(authMiddleware);
+
+// GET /api/v1/babies/:babyId/growth - Lista medições do bebê
+babyGrowthRouter.get(
+  '/',
+  requirePermission('canViewStats'),
+  validateQuery(listGrowthQuerySchema),
+  GrowthController.list
+);
+
+// GET /api/v1/babies/:babyId/growth/latest - Última medição
+babyGrowthRouter.get(
+  '/latest',
+  requirePermission('canViewStats'),
+  GrowthController.getLatest
+);
+
+// GET /api/v1/babies/:babyId/growth/stats - Estatísticas
+babyGrowthRouter.get(
+  '/stats',
+  requirePermission('canViewStats'),
+  GrowthController.getStats
+);
+
+// POST /api/v1/babies/:babyId/growth - Adiciona medição
+babyGrowthRouter.post(
+  '/',
+  requirePermission('canRegisterRoutines'),
+  validateBody(createGrowthSchema),
+  GrowthController.create
+);

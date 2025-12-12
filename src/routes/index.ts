@@ -5,8 +5,8 @@ import caregiverRoutes from './caregiver.routes';
 import babyRoutes from './baby.routes';
 import routineRoutes from './routine.routes';
 import statsRoutes from './stats.routes';
-import growthRoutes from './growth.routes';
-import milestoneRoutes from './milestone.routes';
+import growthRoutes, { babyGrowthRouter } from './growth.routes';
+import milestoneRoutes, { babyMilestoneRouter } from './milestone.routes';
 import exportRoutes from './export.routes';
 import professionalRoutes, { babyProfessionalRouter } from './professional.routes';
 import monitoringRoutes from './monitoring.routes';
@@ -34,7 +34,9 @@ router.use('/export', exportRoutes);
 router.use('/professionals', professionalRoutes);
 router.use('/monitoring', monitoringRoutes);
 
-// Baby-scoped professional routes
+// Baby-scoped routes (nested under /babies/:babyId/)
 router.use('/babies/:babyId/professionals', babyProfessionalRouter);
+router.use('/babies/:babyId/growth', babyGrowthRouter);
+router.use('/babies/:babyId/milestones', babyMilestoneRouter);
 
 export default router;

@@ -79,3 +79,33 @@ router.delete(
 );
 
 export default router;
+
+// ========================================
+// Baby-scoped Milestone Router
+// For routes like /api/v1/babies/:babyId/milestones
+// ========================================
+export const babyMilestoneRouter = Router({ mergeParams: true });
+
+babyMilestoneRouter.use(authMiddleware);
+
+// GET /api/v1/babies/:babyId/milestones - Lista marcos do bebê
+babyMilestoneRouter.get(
+  '/',
+  requirePermission('canViewStats'),
+  MilestoneController.list
+);
+
+// GET /api/v1/babies/:babyId/milestones/progress - Progresso
+babyMilestoneRouter.get(
+  '/progress',
+  requirePermission('canViewStats'),
+  MilestoneController.getProgress
+);
+
+// POST /api/v1/babies/:babyId/milestones - Adiciona marco
+babyMilestoneRouter.post(
+  '/',
+  requirePermission('canRegisterRoutines'),
+  validateBody(createMilestoneSchema),
+  MilestoneController.create
+);
