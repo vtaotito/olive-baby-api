@@ -79,6 +79,10 @@ export type RoutineMeta = FeedingMeta | DiaperMeta | MilkExtractionMeta | BathMe
 export interface BabyStats {
   period: { start: Date; end: Date };
   
+  // Labels para gráficos (datas formatadas)
+  labels: string[];
+  hourlyLabels: number[];
+  
   // Sono
   totalSleepHours24h: number;
   averageSleepPerDay: number;
@@ -93,7 +97,9 @@ export interface BabyStats {
   
   // Complemento
   totalComplementMl24h: number;
+  totalComplementMlRange: number;
   complementMlPerDay: number[];
+  complementFeeds24h: number;
   
   // Mamadeira
   totalBottleMl24h: number;

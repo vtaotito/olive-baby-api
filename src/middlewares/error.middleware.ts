@@ -54,11 +54,12 @@ export function errorMiddleware(
       });
     }
 
-    return res.status(error.statusCode).json({
+    res.status(error.statusCode).json({
       success: false,
       message: error.message,
       ...(process.env.NODE_ENV === 'development' && { stack: error.stack }),
     });
+    return;
   }
 
   // Erro de validação Zod
@@ -69,7 +70,7 @@ export function errorMiddleware(
       method: req.method,
     });
 
-    return res.status(400).json({
+    res.status(400).json({
       success: false,
       message: 'Erro de validação',
       errors: error.errors.map((err) => ({
@@ -77,6 +78,7 @@ export function errorMiddleware(
         message: err.message,
       })),
     });
+    return;
   }
 
   // Erro não tratado

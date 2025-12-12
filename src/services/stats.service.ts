@@ -36,9 +36,28 @@ export class StatsService {
       r => r.startTime >= start24h && r.startTime <= end24h
     );
 
+    // Gerar labels de datas para gráficos
+    const labels = this.generateDateLabels(start, days);
+    const hourlyLabels = Array.from({ length: 24 }, (_, i) => i);
+
+    // Calcular totais de complemento
+    const complementMlPerDay = this.calculateComplementMlPerDay(routines, start, days);
+    const totalComplementMlRange = complementMlPerDay.reduce((sum, ml) => sum + ml, 0);
+    
+    // Contar mamadas com complemento nas 24h
+    const complementFeeds24h = routines24h.filter(r => {
+      if (r.routineType !== 'FEEDING' || !r.meta) return false;
+      const meta = r.meta as FeedingMeta;
+      return (meta.complementMl || 0) > 0;
+    }).length;
+
     // Calcular estatísticas
     const stats: BabyStats = {
       period: { start, end },
+      
+      // Labels para gráficos
+      labels,
+      hourlyLabels,
 
       // Sono
       totalSleepHours24h: this.calculateSleepHours(routines24h),
@@ -54,7 +73,9 @@ export class StatsService {
 
       // Complemento
       totalComplementMl24h: this.calculateComplementMl(routines24h),
-      complementMlPerDay: this.calculateComplementMlPerDay(routines, start, days),
+      totalComplementMlRange,
+      complementMlPerDay,
+      complementFeeds24h,
 
       // Mamadeira
       totalBottleMl24h: this.calculateBottleMl(routines24h),
@@ -73,6 +94,27 @@ export class StatsService {
     };
 
     return stats;
+  }
+
+  /**
+   * Gera labels de datas formatadas para gráficos
+   */
+  private static generateDateLabels(startDate: Date, days: number): string[] {
+    const labels: string[] = [];
+    
+    for (let i = 0; i < days; i++) {
+      const date = new Date(startDate);
+      date.setDate(date.getDate() + i);
+      
+      // Formato: "DD/MM" ou "Seg, DD"
+      const dayOfWeek = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][date.getDay()];
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      
+      labels.push(`${dayOfWeek} ${day}/${month}`);
+    }
+    
+    return labels;
   }
 
   private static calculateSleepHours(routines: any[]): number {

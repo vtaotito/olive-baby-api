@@ -1,7 +1,6 @@
 // Olive Baby API - Professional Service
 import { PrismaClient, ProfessionalStatus, ProfessionalRole, RegistrationSource, UserRole } from '@prisma/client';
 import { AppError } from '../utils/errors/AppError';
-import { verifyBabyAccess } from '../utils/baby-access.helper';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 
@@ -40,7 +39,15 @@ export interface UpdateProfessionalData {
 // Get all professionals linked to a baby
 export async function getProfessionalsByBaby(babyId: number, caregiverId: number) {
   // Verify caregiver has access to this baby
-  await verifyBabyAccess(caregiverId, babyId);
+  const caregiverBaby = await prisma.caregiverBaby.findUnique({
+    where: {
+      caregiverId_babyId: { caregiverId, babyId }
+    }
+  });
+
+  if (!caregiverBaby) {
+    throw new AppError('Você não tem acesso a este bebê', 403);
+  }
 
   const babyProfessionals = await prisma.babyProfessional.findMany({
     where: { babyId },
@@ -101,8 +108,20 @@ export async function getProfessionalById(professionalId: number) {
 
 // Invite a professional (by caregiver)
 export async function inviteProfessional(data: InviteProfessionalData, caregiverId: number) {
-  // Verificar acesso e se é cuidador principal
-  const caregiverBaby = await verifyBabyAccess(caregiverId, data.babyId, true);
+  // Verify caregiver is primary for this baby
+  const caregiverBaby = await prisma.caregiverBaby.findUnique({
+    where: {
+      caregiverId_babyId: { caregiverId, babyId: data.babyId }
+    }
+  });
+
+  if (!caregiverBaby) {
+    throw new AppError('Você não tem acesso a este bebê', 403);
+  }
+
+  if (!caregiverBaby.isPrimary) {
+    throw new AppError('Apenas o cuidador principal pode convidar profissionais', 403);
+  }
 
   // Check if professional already exists
   let professional = await prisma.professional.findUnique({
@@ -270,24 +289,14 @@ export async function resendInvite(professionalId: number, caregiverId: number) 
     throw new AppError('Este profissional já está ativo', 400);
   }
 
-  // Check if caregiver has access to any of the professional's babies
-  const babyIds = professional.babies.map(bp => bp.babyId);
-  const caregiverBabies = await prisma.caregiverBaby.findMany({
-    where: {
-      caregiverId,
-      babyId: { in: babyIds }
-    }
-  });
-
-  if (caregiverBabies.length === 0) {
-    throw new AppError('Você não tem acesso a nenhum dos bebês vinculados a este profissional', 403);
-  }
-
-  // Verificar se é cuidador principal de pelo menos um dos bebês
-  const isPrimary = caregiverBabies.some(cb => cb.isPrimary);
-  if (!isPrimary) {
-    throw new AppError('Apenas o cuidador principal pode reenviar convites', 403);
-  }
+  // Check if caregiver has access
+  const hasAccess = professional.babies.some(bp => 
+    prisma.caregiverBaby.findUnique({
+      where: {
+        caregiverId_babyId: { caregiverId, babyId: bp.babyId }
+      }
+    })
+  );
 
   // Generate new token
   const inviteToken = crypto.randomBytes(32).toString('hex');
@@ -326,7 +335,15 @@ export async function removeProfessionalFromBaby(
   }
 
   // Verify caregiver is primary for this baby
-  await verifyBabyAccess(caregiverId, babyProfessional.babyId, true);
+  const caregiverBaby = await prisma.caregiverBaby.findUnique({
+    where: {
+      caregiverId_babyId: { caregiverId, babyId: babyProfessional.babyId }
+    }
+  });
+
+  if (!caregiverBaby || !caregiverBaby.isPrimary) {
+    throw new AppError('Apenas o cuidador principal pode remover profissionais', 403);
+  }
 
   await prisma.babyProfessional.delete({
     where: { id: babyProfessionalId }
@@ -350,7 +367,15 @@ export async function updateProfessionalLink(
   }
 
   // Verify caregiver has access
-  await verifyBabyAccess(caregiverId, babyProfessional.babyId);
+  const caregiverBaby = await prisma.caregiverBaby.findUnique({
+    where: {
+      caregiverId_babyId: { caregiverId, babyId: babyProfessional.babyId }
+    }
+  });
+
+  if (!caregiverBaby) {
+    throw new AppError('Você não tem acesso a este bebê', 403);
+  }
 
   return prisma.babyProfessional.update({
     where: { id: babyProfessionalId },

@@ -50,6 +50,11 @@ class MonitoringService {
 
   private async initializeRedis() {
     try {
+      if (!env.REDIS_URL) {
+        logger.warn('REDIS_URL not configured, skipping Redis initialization');
+        return;
+      }
+      
       this.redis = new Redis(env.REDIS_URL, {
         maxRetriesPerRequest: 3,
         retryStrategy: (times) => {
@@ -127,8 +132,7 @@ class MonitoringService {
       status = 'unhealthy';
     } else if (
       checks.disk.status === 'warning' ||
-      checks.memory.status === 'warning' ||
-      checks.redis.status === 'down'
+      checks.memory.status === 'warning'
     ) {
       status = 'degraded';
     }
@@ -272,10 +276,12 @@ class MonitoringService {
 
     alertCache.set(alertKey, Date.now());
 
-    // Log do alerta
-    logger[alert.level](alert.message, {
+    // Log do alerta (mapear critical para error no winston)
+    const logLevel = alert.level === 'critical' ? 'error' : alert.level;
+    logger[logLevel as 'error' | 'info' | 'warning'](alert.message, {
       title: alert.title,
       component: alert.component,
+      alertLevel: alert.level,
       ...alert.metadata,
     });
 

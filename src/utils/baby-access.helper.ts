@@ -1,5 +1,5 @@
 // Olive Baby API - Baby Access Helper
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Relationship } from '@prisma/client';
 import { AppError } from './errors/AppError';
 
 const prisma = new PrismaClient();
@@ -121,7 +121,7 @@ export async function ensureBabyAccess(
         data: {
           caregiverId,
           babyId,
-          relationship: relationship || 'MOTHER',
+          relationship: (relationship as Relationship) || 'MOTHER',
           isPrimary: true
         }
       });
