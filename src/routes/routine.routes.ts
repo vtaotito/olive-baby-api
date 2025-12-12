@@ -30,7 +30,7 @@ router.get('/open', RoutineController.getOpenRoutine);
 // CRUD Básico
 // ==========================================
 
-// GET /api/v1/routines - Lista rotinas
+// GET /api/v1/routines - Lista rotinas (com query params)
 router.get('/', validateQuery(listRoutinesQuerySchema), RoutineController.list);
 
 // POST /api/v1/routines - Cria rotina
@@ -41,20 +41,34 @@ router.post(
   RoutineController.create
 );
 
-// GET /api/v1/routines/:id - Detalhes da rotina
-router.get('/:id', RoutineController.getById);
+// GET /api/v1/routines/baby/:babyId - Lista rotinas de um bebê específico
+router.get('/baby/:babyId', RoutineController.listByBaby);
 
-// PUT /api/v1/routines/:id - Atualiza rotina
+// GET /api/v1/routines/log/:id - Detalhes de uma rotina específica
+router.get('/log/:id', RoutineController.getById);
+
+// GET /api/v1/routines/:babyId - Alias para listar rotinas (compatibilidade com frontend)
+router.get('/:babyId', RoutineController.listByBaby);
+
+// PUT /api/v1/routines/log/:id - Atualiza rotina
 router.put(
-  '/:id', 
+  '/log/:id', 
   requirePermission('canEditRoutines'),
   validateBody(updateRoutineSchema), 
   RoutineController.update
 );
 
-// DELETE /api/v1/routines/:id - Remove rotina
+// PATCH /api/v1/routines/log/:id - Atualiza rotina (alias)
+router.patch(
+  '/log/:id', 
+  requirePermission('canEditRoutines'),
+  validateBody(updateRoutineSchema), 
+  RoutineController.update
+);
+
+// DELETE /api/v1/routines/log/:id - Remove rotina
 router.delete(
-  '/:id', 
+  '/log/:id', 
   requirePermission('canDeleteRoutines'),
   RoutineController.delete
 );

@@ -119,6 +119,61 @@ export class RoutineController {
     }
   }
 
+  // Lista rotinas de um bebê específico (usando babyId como path param)
+  static async listByBaby(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      if (!req.user) {
+        throw AppError.unauthorized();
+      }
+
+      const caregiverId = await RoutineController.getCaregiverId(req.user.userId);
+      const babyId = parseInt(req.params.babyId, 10);
+      const query = req.query as any;
+
+      // Converter parâmetros de query
+      let startDate: Date | undefined;
+      let endDate: Date | undefined;
+      let routineType: string | undefined;
+
+      if (query.startDate) {
+        startDate = new Date(query.startDate);
+      }
+      if (query.endDate) {
+        endDate = new Date(query.endDate);
+      }
+      if (query.type || query.routineType) {
+        routineType = query.type || query.routineType;
+      }
+
+      const page = query.page ? parseInt(query.page, 10) : 1;
+      const limit = query.limit ? parseInt(query.limit, 10) : 50;
+      
+      const result = await RoutineService.list(
+        caregiverId,
+        {
+          babyId,
+          routineType: routineType as any,
+          startDate,
+          endDate,
+        },
+        page,
+        limit
+      );
+
+      res.status(200).json({
+        success: true,
+        data: result.data,
+        pagination: result.pagination,
+      } as any);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async getById(
     req: AuthenticatedRequest,
     res: Response<ApiResponse>,

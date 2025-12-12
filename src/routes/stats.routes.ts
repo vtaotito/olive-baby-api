@@ -18,4 +18,11 @@ router.get(
   StatsController.getStats
 );
 
+// GET /api/v1/stats/:babyId/history - Histórico para gráficos
+router.get(
+  '/:babyId/history', 
+  requirePermission('canViewStats'),
+  StatsController.getHistory
+);
+
 export default router;
