@@ -15,6 +15,14 @@ export const createMilestoneSchema = z.object({
   notes: z.string().optional(),
 });
 
+// Schema para rotas aninhadas (babyId vem dos params)
+export const createMilestoneNestedSchema = z.object({
+  milestoneKey: z.string().min(1, 'Chave do marco é obrigatória'),
+  milestoneLabel: z.string().optional(),
+  occurredOn: z.string().datetime().optional().transform(val => val ? new Date(val) : undefined),
+  notes: z.string().optional(),
+});
+
 export const updateMilestoneSchema = z.object({
   milestoneLabel: z.string().optional(),
   occurredOn: z.string().datetime().optional().transform(val => val ? new Date(val) : undefined),
@@ -68,7 +76,9 @@ export class MilestoneController {
       }
 
       const caregiverId = await MilestoneController.getCaregiverId(req.user.userId);
-      const data = req.body;
+      // Support babyId from params (nested route) or body
+      const babyId = req.params.babyId ? parseInt(req.params.babyId, 10) : req.body.babyId;
+      const data = { ...req.body, babyId };
       const milestone = await MilestoneService.create(caregiverId, data);
 
       res.status(201).json({

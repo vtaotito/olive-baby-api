@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { 
   GrowthController, 
   createGrowthSchema, 
+  createGrowthNestedSchema,
   updateGrowthSchema,
   listGrowthQuerySchema 
 } from '../controllers/growth.controller';
@@ -102,6 +103,6 @@ babyGrowthRouter.get(
 babyGrowthRouter.post(
   '/',
   requirePermission('canRegisterRoutines'),
-  validateBody(createGrowthSchema),
+  validateBody(createGrowthNestedSchema),
   GrowthController.create
 );

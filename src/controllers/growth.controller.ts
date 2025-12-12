@@ -17,6 +17,16 @@ export const createGrowthSchema = z.object({
   notes: z.string().optional(),
 });
 
+// Schema para rotas aninhadas (babyId vem dos params)
+export const createGrowthNestedSchema = z.object({
+  measuredAt: z.string().datetime().transform(val => new Date(val)),
+  weightKg: z.number().positive().max(50).optional(),
+  heightCm: z.number().positive().max(200).optional(),
+  headCircumferenceCm: z.number().positive().max(100).optional(),
+  source: z.enum(['home', 'medical_appointment']).optional(),
+  notes: z.string().optional(),
+});
+
 export const updateGrowthSchema = z.object({
   measuredAt: z.string().datetime().optional().transform(val => val ? new Date(val) : undefined),
   weightKg: z.number().positive().max(50).optional(),
@@ -50,7 +60,9 @@ export class GrowthController {
       }
 
       const caregiverId = await GrowthController.getCaregiverId(req.user.userId);
-      const data = req.body;
+      // Support babyId from params (nested route) or body
+      const babyId = req.params.babyId ? parseInt(req.params.babyId, 10) : req.body.babyId;
+      const data = { ...req.body, babyId };
       const growth = await GrowthService.create(caregiverId, data);
 
       res.status(201).json({

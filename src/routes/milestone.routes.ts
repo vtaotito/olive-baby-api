@@ -2,7 +2,8 @@
 import { Router } from 'express';
 import { 
   MilestoneController, 
-  createMilestoneSchema, 
+  createMilestoneSchema,
+  createMilestoneNestedSchema,
   updateMilestoneSchema,
   markMilestoneSchema,
   unmarkMilestoneSchema
@@ -106,6 +107,6 @@ babyMilestoneRouter.get(
 babyMilestoneRouter.post(
   '/',
   requirePermission('canRegisterRoutines'),
-  validateBody(createMilestoneSchema),
+  validateBody(createMilestoneNestedSchema),
   MilestoneController.create
 );
