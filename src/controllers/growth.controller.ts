@@ -6,26 +6,62 @@ import { CaregiverService } from '../services/caregiver.service';
 import { AuthenticatedRequest, ApiResponse } from '../types';
 import { AppError } from '../utils/errors/AppError';
 
-// Schemas de validação
+// Helper para mapear dados do banco para o formato do frontend
+function mapGrowthToFrontend(record: any) {
+  if (!record) return null;
+  return {
+    id: record.id,
+    babyId: record.babyId,
+    measurementDate: record.measuredAt,
+    weightGrams: record.weightKg ? Math.round(Number(record.weightKg) * 1000) : undefined,
+    lengthCm: record.heightCm ? Number(record.heightCm) : undefined,
+    headCircumferenceCm: record.headCircumferenceCm ? Number(record.headCircumferenceCm) : undefined,
+    notes: record.notes,
+    createdAt: record.createdAt,
+  };
+}
+
+// Schemas de validação - aceita dados do frontend (measurementDate, weightGrams) e converte
 export const createGrowthSchema = z.object({
   babyId: z.number().positive(),
-  measuredAt: z.string().datetime().transform(val => new Date(val)),
+  measurementDate: z.string().optional(),
+  measuredAt: z.string().optional(),
+  weightGrams: z.number().positive().max(30000).optional(),
   weightKg: z.number().positive().max(50).optional(),
+  lengthCm: z.number().positive().max(200).optional(),
   heightCm: z.number().positive().max(200).optional(),
   headCircumferenceCm: z.number().positive().max(100).optional(),
   source: z.enum(['home', 'medical_appointment']).optional(),
   notes: z.string().optional(),
-});
+}).transform(data => ({
+  babyId: data.babyId,
+  measuredAt: new Date(data.measurementDate || data.measuredAt || new Date()),
+  weightKg: data.weightGrams ? data.weightGrams / 1000 : data.weightKg,
+  heightCm: data.lengthCm || data.heightCm,
+  headCircumferenceCm: data.headCircumferenceCm,
+  source: data.source,
+  notes: data.notes,
+}));
 
 // Schema para rotas aninhadas (babyId vem dos params)
 export const createGrowthNestedSchema = z.object({
-  measuredAt: z.string().datetime().transform(val => new Date(val)),
+  measurementDate: z.string().optional(),
+  measuredAt: z.string().optional(),
+  weightGrams: z.number().positive().max(30000).optional(),
   weightKg: z.number().positive().max(50).optional(),
+  lengthCm: z.number().positive().max(200).optional(),
   heightCm: z.number().positive().max(200).optional(),
   headCircumferenceCm: z.number().positive().max(100).optional(),
   source: z.enum(['home', 'medical_appointment']).optional(),
   notes: z.string().optional(),
-});
+}).transform(data => ({
+  measuredAt: new Date(data.measurementDate || data.measuredAt || new Date()),
+  weightKg: data.weightGrams ? data.weightGrams / 1000 : data.weightKg,
+  heightCm: data.lengthCm || data.heightCm,
+  headCircumferenceCm: data.headCircumferenceCm,
+  source: data.source,
+  notes: data.notes,
+}));
 
 export const updateGrowthSchema = z.object({
   measuredAt: z.string().datetime().optional().transform(val => val ? new Date(val) : undefined),
@@ -68,7 +104,7 @@ export class GrowthController {
       res.status(201).json({
         success: true,
         message: 'Medição registrada com sucesso',
-        data: growth,
+        data: mapGrowthToFrontend(growth),
       });
     } catch (error) {
       next(error);
@@ -100,9 +136,12 @@ export class GrowthController {
         query.limit
       );
 
+      // Mapear dados para formato do frontend
+      const mappedData = result.data.map(mapGrowthToFrontend);
+
       res.status(200).json({
         success: true,
-        data: result.data,
+        data: mappedData,
         pagination: result.pagination,
       } as any);
     } catch (error) {
@@ -126,7 +165,7 @@ export class GrowthController {
 
       res.status(200).json({
         success: true,
-        data: growth,
+        data: mapGrowthToFrontend(growth),
       });
     } catch (error) {
       next(error);
@@ -151,7 +190,7 @@ export class GrowthController {
       res.status(200).json({
         success: true,
         message: 'Medição atualizada com sucesso',
-        data: growth,
+        data: mapGrowthToFrontend(growth),
       });
     } catch (error) {
       next(error);
@@ -197,7 +236,7 @@ export class GrowthController {
 
       res.status(200).json({
         success: true,
-        data: growth,
+        data: mapGrowthToFrontend(growth),
       });
     } catch (error) {
       next(error);

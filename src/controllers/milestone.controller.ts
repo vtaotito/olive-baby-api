@@ -6,22 +6,56 @@ import { CaregiverService } from '../services/caregiver.service';
 import { AuthenticatedRequest, ApiResponse } from '../types';
 import { AppError } from '../utils/errors/AppError';
 
-// Schemas de validação
+// Helper para mapear milestone para formato do frontend
+function mapMilestoneToFrontend(record: any, category?: string) {
+  if (!record) return null;
+  return {
+    id: record.id,
+    babyId: record.babyId,
+    title: record.milestoneLabel || record.milestoneKey,
+    description: record.milestoneKey,
+    category: category || 'MOTOR',
+    achievedAt: record.occurredOn,
+    notes: record.notes,
+    isCustom: false,
+    createdAt: record.createdAt,
+  };
+}
+
+// Schemas de validação - aceita dados do frontend e converte
 export const createMilestoneSchema = z.object({
   babyId: z.number().positive(),
-  milestoneKey: z.string().min(1, 'Chave do marco é obrigatória'),
+  // Aceita 'title' do frontend ou 'milestoneKey' do backend
+  title: z.string().optional(),
+  milestoneKey: z.string().optional(),
   milestoneLabel: z.string().optional(),
-  occurredOn: z.string().datetime().optional().transform(val => val ? new Date(val) : undefined),
+  category: z.string().optional(),
+  achievedAt: z.string().optional(),
+  occurredOn: z.string().optional(),
   notes: z.string().optional(),
-});
+}).transform(data => ({
+  babyId: data.babyId,
+  milestoneKey: data.milestoneKey || data.title || 'custom',
+  milestoneLabel: data.milestoneLabel || data.title,
+  occurredOn: data.occurredOn || data.achievedAt ? new Date(data.occurredOn || data.achievedAt!) : undefined,
+  notes: data.notes,
+}));
 
 // Schema para rotas aninhadas (babyId vem dos params)
 export const createMilestoneNestedSchema = z.object({
-  milestoneKey: z.string().min(1, 'Chave do marco é obrigatória'),
+  title: z.string().optional(),
+  milestoneKey: z.string().optional(),
   milestoneLabel: z.string().optional(),
-  occurredOn: z.string().datetime().optional().transform(val => val ? new Date(val) : undefined),
+  category: z.string().optional(),
+  achievedAt: z.string().optional(),
+  occurredOn: z.string().optional(),
   notes: z.string().optional(),
-});
+}).transform(data => ({
+  milestoneKey: data.milestoneKey || data.title || 'custom',
+  milestoneLabel: data.milestoneLabel || data.title,
+  occurredOn: data.occurredOn || data.achievedAt ? new Date(data.occurredOn || data.achievedAt!) : undefined,
+  notes: data.notes,
+}));
 
 export const updateMilestoneSchema = z.object({
   milestoneLabel: z.string().optional(),
@@ -84,7 +118,7 @@ export class MilestoneController {
       res.status(201).json({
         success: true,
         message: 'Marco registrado com sucesso',
-        data: milestone,
+        data: mapMilestoneToFrontend(milestone),
       });
     } catch (error) {
       next(error);
@@ -105,9 +139,24 @@ export class MilestoneController {
       const caregiverId = await MilestoneController.getCaregiverId(req.user.userId);
       const result = await MilestoneService.listByBaby(caregiverId, babyId);
 
+      // Converter para array simples no formato do frontend
+      const milestones: any[] = [];
+      
+      // Adicionar marcos pré-definidos que foram alcançados
+      for (const item of result.predefined) {
+        if (item.record) {
+          milestones.push(mapMilestoneToFrontend(item.record, 'MOTOR'));
+        }
+      }
+      
+      // Adicionar marcos customizados
+      for (const item of result.custom) {
+        milestones.push(mapMilestoneToFrontend(item, 'CUSTOM'));
+      }
+
       res.status(200).json({
         success: true,
-        data: result,
+        data: milestones,
       });
     } catch (error) {
       next(error);
@@ -130,7 +179,7 @@ export class MilestoneController {
 
       res.status(200).json({
         success: true,
-        data: milestone,
+        data: mapMilestoneToFrontend(milestone),
       });
     } catch (error) {
       next(error);
@@ -155,7 +204,7 @@ export class MilestoneController {
       res.status(200).json({
         success: true,
         message: 'Marco atualizado com sucesso',
-        data: milestone,
+        data: mapMilestoneToFrontend(milestone),
       });
     } catch (error) {
       next(error);
@@ -209,7 +258,7 @@ export class MilestoneController {
       res.status(200).json({
         success: true,
         message: 'Marco marcado como alcançado',
-        data: milestone,
+        data: mapMilestoneToFrontend(milestone),
       });
     } catch (error) {
       next(error);
