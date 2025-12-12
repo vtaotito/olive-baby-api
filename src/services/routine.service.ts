@@ -225,7 +225,12 @@ export class RoutineService {
     // Verificar se já existe rotina em aberto
     const openRoutine = await this.hasOpenRoutine(babyId, routineType);
     if (openRoutine) {
-      throw AppError.conflict(`Já existe um registro de ${routineType} em aberto`);
+      // Retorna código específico e a rotina aberta para o frontend
+      throw AppError.conflict(
+        `Já existe um registro de ${routineType} em aberto`,
+        `${routineType}_ALREADY_OPEN`,
+        { openRoutine }
+      );
     }
 
     const routine = await prisma.routineLog.create({

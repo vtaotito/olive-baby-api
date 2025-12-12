@@ -19,6 +19,14 @@ const router = Router();
 router.use(authMiddleware);
 
 // ==========================================
+// Verificar Rotina Aberta (Genérico)
+// ==========================================
+
+// GET /api/v1/routines/open - Verifica qualquer rotina aberta
+// Query params: babyId, routineType (FEEDING, SLEEP, BATH)
+router.get('/open', RoutineController.getOpenRoutine);
+
+// ==========================================
 // CRUD Básico
 // ==========================================
 
@@ -116,6 +124,9 @@ router.post(
   validateBody(closeRoutineSchema), 
   RoutineController.closeBath
 );
+
+// GET /api/v1/routines/bath/open - Verifica banho em aberto
+router.get('/bath/open', RoutineController.getOpenBath);
 
 // ==========================================
 // Fralda (Diaper) - Instantâneo

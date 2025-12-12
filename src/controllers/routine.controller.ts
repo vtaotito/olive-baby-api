@@ -384,6 +384,72 @@ export class RoutineController {
     }
   }
 
+  static async getOpenBath(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      if (!req.user) {
+        throw AppError.unauthorized();
+      }
+
+      const caregiverId = await RoutineController.getCaregiverId(req.user.userId);
+      const babyId = parseInt(req.query.babyId as string, 10);
+      const routine = await RoutineService.getOpenRoutine(caregiverId, babyId, 'BATH');
+
+      res.status(200).json({
+        success: true,
+        data: routine,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // ==========================================
+  // Endpoint Genérico - Verificar Rotina Aberta
+  // ==========================================
+
+  static async getOpenRoutine(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      if (!req.user) {
+        throw AppError.unauthorized();
+      }
+
+      const caregiverId = await RoutineController.getCaregiverId(req.user.userId);
+      const babyId = parseInt(req.query.babyId as string, 10);
+      const routineType = req.query.routineType as string;
+
+      if (!babyId || !routineType) {
+        throw AppError.badRequest('babyId e routineType são obrigatórios');
+      }
+
+      const validTypes = ['FEEDING', 'SLEEP', 'BATH'];
+      if (!validTypes.includes(routineType.toUpperCase())) {
+        throw AppError.badRequest(`Tipo de rotina inválido. Use: ${validTypes.join(', ')}`);
+      }
+
+      const routine = await RoutineService.getOpenRoutine(
+        caregiverId, 
+        babyId, 
+        routineType.toUpperCase() as any
+      );
+
+      res.status(200).json({
+        success: true,
+        data: routine,
+        hasOpenRoutine: !!routine,
+      } as any);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // ==========================================
   // Rotinas Instantâneas
   // ==========================================
