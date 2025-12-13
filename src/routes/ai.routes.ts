@@ -1,7 +1,7 @@
 // Olive Baby API - AI Routes
 import { Router } from 'express';
 import { AIController } from '../controllers/ai.controller';
-import { authenticate } from '../middlewares/auth.middleware';
+import { authMiddleware } from '../middlewares/auth.middleware';
 import rateLimit from 'express-rate-limit';
 
 const router = Router();
@@ -26,7 +26,7 @@ const chatRateLimiter = rateLimit({
 });
 
 // Apply authentication to all routes
-router.use(authenticate);
+router.use(authMiddleware);
 
 // ==========================================
 // Health Check
