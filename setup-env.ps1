@@ -1,6 +1,16 @@
-﻿# Script para configurar .env com variaveis necessarias para AI Assistant
+# Script para configurar .env com variaveis necessarias para AI Assistant
 $envFile = ".env"
-$openaiKey = "sk-proj-SUA_CHAVE_AQUI"
+# IMPORTANTE: Leia a chave do .env existente ou solicite ao usuário
+$openaiKey = if (Test-Path $envFile) {
+    $envLine = Select-String -Path $envFile -Pattern "^OPENAI_API_KEY=" | Select-Object -First 1
+    if ($envLine) {
+        $envLine.Line -replace "^OPENAI_API_KEY=", ""
+    } else {
+        Read-Host "Digite sua chave OpenAI API"
+    }
+} else {
+    Read-Host "Digite sua chave OpenAI API"
+}
 
 Write-Host "Configurando arquivo .env..." -ForegroundColor Cyan
 
