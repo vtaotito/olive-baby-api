@@ -1,0 +1,299 @@
+{
+  "info": {
+    "name": "Olive Baby API - AI Assistant",
+    "description": "Endpoints do Olive Assistant - Chat com IA para cuidados com bebês",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:4000/api/v1"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "babyId",
+      "value": "1"
+    },
+    {
+      "key": "sessionId",
+      "value": ""
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "AI Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ai/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "health"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chat Sessions",
+      "item": [
+        {
+          "name": "Create Session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success && jsonData.data) {",
+                  "    pm.collectionVariables.set('sessionId', jsonData.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"babyId\": {{babyId}},\n  \"title\": \"Dúvidas sobre sono\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ai/chat/sessions",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "chat", "sessions"]
+            }
+          }
+        },
+        {
+          "name": "List Sessions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ai/chat/sessions?babyId={{babyId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "chat", "sessions"],
+              "query": [
+                {
+                  "key": "babyId",
+                  "value": "{{babyId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Session",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ai/chat/sessions/{{sessionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "chat", "sessions", "{{sessionId}}"]
+            }
+          }
+        },
+        {
+          "name": "Send Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Meu bebê de 3 meses está dormindo pouco à noite, isso é normal?\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ai/chat/sessions/{{sessionId}}/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "chat", "sessions", "{{sessionId}}", "messages"]
+            }
+          }
+        },
+        {
+          "name": "Archive Session",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ai/chat/sessions/{{sessionId}}/archive",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "chat", "sessions", "{{sessionId}}", "archive"]
+            }
+          }
+        },
+        {
+          "name": "Delete Session",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ai/chat/sessions/{{sessionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "chat", "sessions", "{{sessionId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Insights",
+      "item": [
+        {
+          "name": "Get Insights",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ai/insights/{{babyId}}?refresh=false",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "insights", "{{babyId}}"],
+              "query": [
+                {
+                  "key": "refresh",
+                  "value": "false"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Generate Insights",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ai/insights/{{babyId}}/generate",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "insights", "{{babyId}}", "generate"]
+            }
+          }
+        },
+        {
+          "name": "Mark Insight Read",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ai/insights/1/read",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "insights", "1", "read"]
+            }
+          }
+        },
+        {
+          "name": "Dismiss Insight",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ai/insights/1/dismiss",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "insights", "1", "dismiss"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Knowledge Base",
+      "item": [
+        {
+          "name": "List Documents",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ai/documents",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "documents"]
+            }
+          }
+        },
+        {
+          "name": "Search Knowledge",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"como saber se o bebê está mamando bem\",\n  \"topK\": 5\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ai/search",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "search"]
+            }
+          }
+        },
+        {
+          "name": "Ingest Document",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourcePath\": \"manual/colicas.md\",\n  \"title\": \"Cólicas no bebê\",\n  \"content\": \"# Cólicas no Bebê\\n\\n## O que são cólicas?\\n\\nCólicas são episódios de choro intenso...\",\n  \"tags\": [\"colica\", \"choro\", \"saude\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ai/documents/ingest",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "documents", "ingest"]
+            }
+          }
+        },
+        {
+          "name": "Delete Document",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ai/documents/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "documents", "1"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

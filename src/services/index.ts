@@ -10,3 +10,4 @@ export * from './milestone.service';
 export * from './export.service';
 export * from './professional.service';
 export * from './email.service';
+export * from './ai';

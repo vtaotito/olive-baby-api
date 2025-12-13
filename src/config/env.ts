@@ -43,6 +43,14 @@ const envSchema = z.object({
   // Monitoring & Alerts
   ALERT_EMAIL: z.string().email().optional(),
   ALERT_WEBHOOK_URL: z.string().url().optional(),
+
+  // OpenAI / AI Assistant
+  OPENAI_API_KEY: z.string().optional(),
+  OPENAI_MODEL: z.string().default('gpt-4o'),
+  OPENAI_EMBEDDING_MODEL: z.string().default('text-embedding-3-small'),
+  AI_MAX_TOKENS: z.string().default('2048').transform(Number),
+  AI_TEMPERATURE: z.string().default('0.7').transform(Number),
+  AI_RAG_TOP_K: z.string().default('6').transform(Number),
 });
 
 const parsed = envSchema.safeParse(process.env);

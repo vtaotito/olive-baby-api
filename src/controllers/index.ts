@@ -8,3 +8,4 @@ export * from './growth.controller';
 export * from './milestone.controller';
 export * from './export.controller';
 export * from './professional.controller';
+export * from './ai.controller';

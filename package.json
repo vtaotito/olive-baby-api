@@ -14,7 +14,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "lint": "eslint src/**/*.ts",
-    "lint:fix": "eslint src/**/*.ts --fix"
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "ai:ingest": "ts-node src/scripts/ai-ingest.ts"
   },
   "keywords": [
     "baby",

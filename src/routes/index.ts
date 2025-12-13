@@ -10,6 +10,7 @@ import milestoneRoutes, { babyMilestoneRouter } from './milestone.routes';
 import exportRoutes from './export.routes';
 import professionalRoutes, { babyProfessionalRouter } from './professional.routes';
 import monitoringRoutes from './monitoring.routes';
+import aiRoutes from './ai.routes';
 
 const router = Router();
 
@@ -33,6 +34,7 @@ router.use('/milestones', milestoneRoutes);
 router.use('/export', exportRoutes);
 router.use('/professionals', professionalRoutes);
 router.use('/monitoring', monitoringRoutes);
+router.use('/ai', aiRoutes);
 
 // Baby-scoped routes (nested under /babies/:babyId/)
 router.use('/babies/:babyId/professionals', babyProfessionalRouter);

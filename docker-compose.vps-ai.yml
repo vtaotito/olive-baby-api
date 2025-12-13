@@ -1,0 +1,107 @@
+# Olive Baby - Docker Compose for VPS with AI Assistant
+# Conecta aos serviços PostgreSQL e Redis existentes no VPS
+# Usa rede externa olivebaby-infra_default para infra e olivebaby-network para app
+
+version: '3.8'
+
+services:
+  # ==========================================
+  # Backend API (Node.js) with AI Assistant
+  # ==========================================
+  api:
+    image: node:20-slim
+    container_name: olivebaby-api
+    restart: unless-stopped
+    working_dir: /app
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        apt-get update && apt-get install -y git openssl libssl-dev ca-certificates curl wget
+        echo "Cloning repository..."
+        rm -rf /app/* /app/.* 2>/dev/null || true
+        git clone https://github.com/vtaotito/olive-baby-api.git /tmp/api
+        cp -r /tmp/api/* /app/
+        rm -rf /tmp/api
+        echo "Installing dependencies..."
+        npm install --include=dev
+        echo "Generating Prisma client..."
+        npx prisma generate
+        echo "Running migrations..."
+        npx prisma migrate deploy || echo "Migration skipped"
+        echo "Building application..."
+        npm run build
+        echo "Starting API server..."
+        npm start
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      API_PREFIX: /api/v1
+      DATABASE_URL: postgresql://olivebaby:OliveBaby@2024Secure!@olivebaby-db:5432/olivebaby?schema=public
+      REDIS_URL: redis://:OliveBabyRedis@2024!@olivebaby-redis:6379
+      JWT_ACCESS_SECRET: OliveBabyJWT2024AccessSecretKey32chars!
+      JWT_REFRESH_SECRET: OliveBabyJWT2024RefreshSecretKey32ch!
+      JWT_ACCESS_EXPIRES_IN: 1h
+      JWT_REFRESH_EXPIRES_IN: 7d
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: 587
+      FRONTEND_URL: https://oliecare.cloud
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX: 100
+      # AI Configuration
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      AI_MAX_TOKENS: ${AI_MAX_TOKENS:-2048}
+      AI_TEMPERATURE: ${AI_TEMPERATURE:-0.7}
+      AI_RAG_TOP_K: ${AI_RAG_TOP_K:-6}
+    ports:
+      - "4000:4000"
+    networks:
+      - olivebaby-infra_default
+      - olivebaby-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 180s
+
+  # ==========================================
+  # AI Ingest Worker (one-shot)
+  # ==========================================
+  ai-ingest:
+    image: node:20-slim
+    container_name: olivebaby-ai-ingest
+    working_dir: /app
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        apt-get update && apt-get install -y git
+        echo "Cloning repository..."
+        rm -rf /app/* /app/.* 2>/dev/null || true
+        git clone https://github.com/vtaotito/olive-baby-api.git /tmp/api
+        cp -r /tmp/api/* /app/
+        rm -rf /tmp/api
+        npm install --include=dev
+        npx prisma generate
+        echo "Running AI knowledge base ingestion..."
+        npm run ai:ingest
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://olivebaby:OliveBaby@2024Secure!@olivebaby-db:5432/olivebaby?schema=public
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+    depends_on:
+      - api
+    networks:
+      - olivebaby-infra_default
+    profiles:
+      - ingest
+
+networks:
+  olivebaby-infra_default:
+    external: true
+  olivebaby-network:
+    external: true

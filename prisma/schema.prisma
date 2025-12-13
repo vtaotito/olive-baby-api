@@ -83,6 +83,7 @@ model User {
   caregiver     Caregiver?
   professional  Professional?
   refreshTokens RefreshToken[]
+  chatSessions  AiChatSession[]
 
   @@map("users")
 }
@@ -124,6 +125,8 @@ model Baby {
   routineLogs      RoutineLog[]
   growthRecords    Growth[]
   milestones       Milestone[]
+  chatSessions     AiChatSession[]
+  insights         AiInsight[]
 
   @@map("babies")
 }
@@ -256,4 +259,130 @@ model PasswordReset {
 
   @@index([email])
   @@map("password_resets")
+}
+
+// ==========================================
+// AI ASSISTANT MODELS
+// ==========================================
+
+enum AiMessageRole {
+  user
+  assistant
+  tool
+  system
+
+  @@map("ai_message_role")
+}
+
+enum AiInsightSeverity {
+  info
+  warning
+  alert
+
+  @@map("ai_insight_severity")
+}
+
+enum AiInsightType {
+  sleep_pattern
+  feeding_pattern
+  diaper_alert
+  cluster_feeding
+  breast_distribution
+  growth_trend
+  milestone_suggestion
+  routine_anomaly
+  general
+
+  @@map("ai_insight_type")
+}
+
+model AiDocument {
+  id          Int       @id @default(autoincrement())
+  source      String    @db.VarChar(500)
+  title       String    @db.VarChar(255)
+  tags        String[]  @default([])
+  metadata    Json?     @default("{}") @db.JsonB
+  contentHash String?   @map("content_hash") @db.VarChar(64)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  chunks      AiChunk[]
+
+  @@index([source])
+  @@map("ai_documents")
+}
+
+model AiChunk {
+  id          Int        @id @default(autoincrement())
+  documentId  Int        @map("document_id")
+  chunkIndex  Int        @map("chunk_index")
+  content     String
+  embedding   Unsupported("vector(1536)")?
+  metadata    Json?      @default("{}") @db.JsonB
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  document    AiDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@map("ai_chunks")
+}
+
+model AiChatSession {
+  id        Int       @id @default(autoincrement())
+  userId    Int       @map("user_id")
+  babyId    Int       @map("baby_id")
+  title     String?   @db.VarChar(255)
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  baby      Baby      @relation(fields: [babyId], references: [id], onDelete: Cascade)
+  messages  AiChatMessage[]
+
+  @@index([userId])
+  @@index([babyId])
+  @@index([userId, babyId])
+  @@map("ai_chat_sessions")
+}
+
+model AiChatMessage {
+  id          Int           @id @default(autoincrement())
+  sessionId   Int           @map("session_id")
+  role        AiMessageRole
+  content     String
+  toolName    String?       @map("tool_name") @db.VarChar(100)
+  toolPayload Json?         @map("tool_payload") @db.JsonB
+  citations   Json?         @default("[]") @db.JsonB
+  tokensUsed  Int?          @map("tokens_used")
+  createdAt   DateTime      @default(now()) @map("created_at")
+
+  session     AiChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([sessionId, createdAt])
+  @@map("ai_chat_messages")
+}
+
+model AiInsight {
+  id             Int               @id @default(autoincrement())
+  babyId         Int               @map("baby_id")
+  type           AiInsightType
+  severity       AiInsightSeverity @default(info)
+  title          String            @db.VarChar(255)
+  explanation    String
+  recommendation String?
+  data           Json?             @default("{}") @db.JsonB
+  isRead         Boolean           @default(false) @map("is_read")
+  isDismissed    Boolean           @default(false) @map("is_dismissed")
+  validUntil     DateTime?         @map("valid_until")
+  createdAt      DateTime          @default(now()) @map("created_at")
+
+  baby           Baby              @relation(fields: [babyId], references: [id], onDelete: Cascade)
+
+  @@index([babyId])
+  @@index([babyId, type])
+  @@index([severity])
+  @@index([createdAt])
+  @@map("ai_insights")
 }
