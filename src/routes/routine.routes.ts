@@ -155,10 +155,29 @@ router.post(
 );
 
 // ==========================================
-// Extração de Leite - Instantâneo
+// Extração de Leite - Com timer
 // ==========================================
 
-// POST /api/v1/routines/extraction - Registra extração
+// POST /api/v1/routines/extraction/start - Inicia extração
+router.post(
+  '/extraction/start', 
+  requirePermission('canRegisterRoutines'),
+  validateBody(startRoutineSchema), 
+  RoutineController.startExtraction
+);
+
+// POST /api/v1/routines/extraction/close - Finaliza extração
+router.post(
+  '/extraction/close', 
+  requirePermission('canRegisterRoutines'),
+  validateBody(closeRoutineSchema), 
+  RoutineController.closeExtraction
+);
+
+// GET /api/v1/routines/extraction/open - Verifica extração em aberto
+router.get('/extraction/open', RoutineController.getOpenExtraction);
+
+// POST /api/v1/routines/extraction - Registra extração instantânea (compatibilidade)
 router.post(
   '/extraction', 
   requirePermission('canRegisterRoutines'),

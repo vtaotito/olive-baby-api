@@ -29,7 +29,7 @@ interface ListRoutinesFilter {
 }
 
 // Rotinas que têm início e fim (timer)
-const TIMED_ROUTINES: RoutineType[] = ['FEEDING', 'SLEEP', 'BATH'];
+const TIMED_ROUTINES: RoutineType[] = ['FEEDING', 'SLEEP', 'BATH', 'MILK_EXTRACTION'];
 
 export class RoutineService {
   // ==========================================
