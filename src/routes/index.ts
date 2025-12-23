@@ -11,6 +11,8 @@ import exportRoutes from './export.routes';
 import professionalRoutes, { babyProfessionalRouter } from './professional.routes';
 import monitoringRoutes from './monitoring.routes';
 import aiRoutes from './ai.routes';
+import babyMemberRoutes from './baby-member.routes';
+import babyInviteRoutes from './baby-invite.routes';
 
 const router = Router();
 
@@ -26,7 +28,6 @@ router.get('/health', (req, res) => {
 // API Routes
 router.use('/auth', authRoutes);
 router.use('/caregivers', caregiverRoutes);
-router.use('/babies', babyRoutes);
 router.use('/routines', routineRoutes);
 router.use('/stats', statsRoutes);
 router.use('/growth', growthRoutes);
@@ -37,8 +38,14 @@ router.use('/monitoring', monitoringRoutes);
 router.use('/ai', aiRoutes);
 
 // Baby-scoped routes (nested under /babies/:babyId/)
+// IMPORTANTE: Registrar rotas específicas ANTES das rotas genéricas de /babies
 router.use('/babies/:babyId/professionals', babyProfessionalRouter);
 router.use('/babies/:babyId/growth', babyGrowthRouter);
 router.use('/babies/:babyId/milestones', babyMilestoneRouter);
+router.use('/', babyMemberRoutes); // Rotas: /babies/:babyId/members
+router.use('/', babyInviteRoutes); // Rotas: /babies/:babyId/invites
+
+// Rotas genéricas de babies (deve vir por último para não capturar rotas específicas)
+router.use('/babies', babyRoutes);
 
 export default router;
