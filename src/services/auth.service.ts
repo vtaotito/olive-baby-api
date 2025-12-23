@@ -1,6 +1,5 @@
 // Olive Baby API - Auth Service
 import bcrypt from 'bcryptjs';
-import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '../config/database';
 import { JwtService } from './jwt.service';
 import { AppError } from '../utils/errors/AppError';
@@ -8,6 +7,7 @@ import { validateCPF, cleanCPF } from '../utils/validators/cpf.validator';
 import { validatePassword } from '../utils/validators/password.validator';
 import { JwtPayload } from '../types';
 import { UserRole, Relationship } from '@prisma/client';
+import { logger } from '../config/logger';
 
 const SALT_ROUNDS = 10;
 
@@ -219,29 +219,74 @@ export class AuthService {
     await JwtService.revokeRefreshToken(refreshToken);
   }
 
-  static async forgotPassword(email: string): Promise<void> {
+  static async forgotPassword(
+    email: string,
+    requestIp?: string,
+    userAgent?: string
+  ): Promise<void> {
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    // Buscar usuário (sem revelar se existe)
     const user = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
+      where: { email: normalizedEmail },
+      include: { caregiver: true },
     });
 
-    // Não revelar se email existe
-    if (!user) return;
+    // Sempre retornar sucesso para não revelar se email existe
+    // Se usuário não existe, apenas retornar sem fazer nada
+    if (!user) {
+      // Log de segurança (sem revelar email completo)
+      logger.info('Password reset requested for non-existent email', {
+        emailPrefix: normalizedEmail.substring(0, 3) + '***',
+        ip: requestIp,
+      });
+      return;
+    }
 
-    // Gerar token de reset
-    const token = uuidv4();
+    // Importar serviços necessários
+    const { generateResetToken, createPasswordReset } = await import('./password-reset.service');
+    const { sendPasswordResetEmail } = await import('./email.service');
+
+    // Gerar token seguro
+    const { token, tokenHash } = generateResetToken();
+    
+    // Definir expiração (30 minutos)
     const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 1); // 1 hora
+    expiresAt.setMinutes(expiresAt.getMinutes() + 30);
 
-    await prisma.passwordReset.create({
-      data: {
-        email: email.toLowerCase(),
-        token,
-        expiresAt,
-      },
+    // Criar registro no banco
+    await createPasswordReset(
+      user.id,
+      tokenHash,
+      expiresAt,
+      requestIp,
+      userAgent
+    );
+
+    // Enviar email
+    try {
+      await sendPasswordResetEmail({
+        email: normalizedEmail,
+        resetToken: token,
+        userName: user.caregiver?.fullName,
+      });
+    } catch (error: any) {
+      // Log erro mas não falhar a requisição (segurança)
+      logger.error('Failed to send password reset email', {
+        userId: user.id,
+        emailPrefix: normalizedEmail.substring(0, 3) + '***',
+        error: error.message,
+      });
+      // Não lançar erro para não revelar que email existe
+    }
+
+    // Log de segurança (sem token)
+    logger.info('Password reset token created', {
+      userId: user.id,
+      emailPrefix: normalizedEmail.substring(0, 3) + '***',
+      ip: requestIp,
+      expiresAt: expiresAt.toISOString(),
     });
-
-    // TODO: Enviar email com link de reset
-    console.log(`Password reset token for ${email}: ${token}`);
   }
 
   static async resetPassword(token: string, newPassword: string): Promise<void> {
@@ -251,40 +296,50 @@ export class AuthService {
       throw AppError.badRequest('Senha inválida', { password: passwordValidation.errors });
     }
 
-    // Buscar token
-    const resetRecord = await prisma.passwordReset.findUnique({
-      where: { token },
-    });
+    // Importar serviços necessários
+    const { validateResetToken, findValidResetToken, markTokenAsUsed } = await import('./password-reset.service');
 
-    if (!resetRecord || resetRecord.used || resetRecord.expiresAt < new Date()) {
-      throw AppError.badRequest('Token inválido ou expirado');
+    // Criar hash do token recebido
+    const crypto = await import('crypto');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Buscar token válido no banco
+    const resetRecord = await findValidResetToken(tokenHash);
+
+    if (!resetRecord) {
+      // Mensagem genérica para não revelar detalhes
+      throw AppError.badRequest('Token inválido ou expirado. Por favor, solicite um novo link de recuperação.');
     }
 
-    // Buscar usuário
-    const user = await prisma.user.findUnique({
-      where: { email: resetRecord.email },
-    });
-
-    if (!user) {
-      throw AppError.badRequest('Usuário não encontrado');
+    // Validar token (double check)
+    if (!validateResetToken(token, resetRecord.tokenHash)) {
+      throw AppError.badRequest('Token inválido ou expirado. Por favor, solicite um novo link de recuperação.');
     }
 
-    // Atualizar senha
+    const user = resetRecord.user;
+
+    // Atualizar senha e invalidar tokens em transação
     const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
 
     await prisma.$transaction([
+      // Atualizar senha
       prisma.user.update({
         where: { id: user.id },
         data: { passwordHash },
       }),
-      prisma.passwordReset.update({
-        where: { token },
-        data: { used: true },
-      }),
-      // Revogar todos os tokens de refresh
+      // Marcar token como usado
+      markTokenAsUsed(tokenHash),
+      // Revogar todos os refresh tokens (forçar novo login)
       prisma.refreshToken.deleteMany({
         where: { userId: user.id },
       }),
     ]);
+
+    // Log de segurança (sem token)
+    logger.info('Password reset completed', {
+      userId: user.id,
+      emailPrefix: user.email.substring(0, 3) + '***',
+      ip: resetRecord.requestIp,
+    });
   }
 }

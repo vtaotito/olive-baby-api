@@ -67,6 +67,36 @@ enum RoutineType {
   MILK_EXTRACTION
 }
 
+enum BabyMemberType {
+  PARENT
+  FAMILY
+  PROFESSIONAL
+}
+
+enum BabyMemberRole {
+  OWNER_PARENT_1
+  OWNER_PARENT_2
+  FAMILY_VIEWER
+  FAMILY_EDITOR
+  PEDIATRICIAN
+  OBGYN
+  LACTATION_CONSULTANT
+  OTHER
+}
+
+enum BabyMemberStatus {
+  ACTIVE
+  PENDING
+  REVOKED
+}
+
+enum BabyInviteStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
 // ==========================================
 // MODELS
 // ==========================================
@@ -83,7 +113,11 @@ model User {
   caregiver     Caregiver?
   professional  Professional?
   refreshTokens RefreshToken[]
+  passwordResets PasswordReset[]
   chatSessions  AiChatSession[]
+  babyMembers   BabyMember[]
+  babyInvitesCreated BabyInvite[] @relation("BabyInviteCreatedBy")
+  babyMembersRevoked BabyMember[] @relation("BabyMemberRevokedBy")
 
   @@map("users")
 }
@@ -117,11 +151,14 @@ model Baby {
   country          String    @default("BR") @db.Char(2)
   birthWeightGrams Int?      @map("birth_weight_grams")
   birthLengthCm    Decimal?  @map("birth_length_cm") @db.Decimal(5, 2)
+  babyCpfHash      String?   @unique @map("baby_cpf_hash") @db.VarChar(64)
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
   
   caregivers       CaregiverBaby[]
   professionals    BabyProfessional[]
+  members          BabyMember[]
+  invites          BabyInvite[]
   routineLogs      RoutineLog[]
   growthRecords    Growth[]
   milestones       Milestone[]
@@ -250,15 +287,75 @@ model RefreshToken {
 }
 
 model PasswordReset {
-  id        Int      @id @default(autoincrement())
-  email     String
-  token     String   @unique
-  expiresAt DateTime @map("expires_at")
-  used      Boolean  @default(false)
-  createdAt DateTime @default(now()) @map("created_at")
+  id         Int       @id @default(autoincrement())
+  userId     Int       @map("user_id")
+  tokenHash  String    @unique @map("token_hash") @db.VarChar(64)
+  expiresAt  DateTime  @map("expires_at")
+  usedAt     DateTime? @map("used_at")
+  requestIp  String?   @map("request_ip") @db.VarChar(45)
+  userAgent  String?   @map("user_agent") @db.VarChar(500)
+  createdAt  DateTime  @default(now()) @map("created_at")
+  
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([email])
+  @@index([userId])
+  @@index([tokenHash])
+  @@index([userId, usedAt])
+  @@index([expiresAt])
   @@map("password_resets")
+}
+
+// ==========================================
+// BABY SHARING MODELS
+// ==========================================
+
+model BabyMember {
+  id             Int              @id @default(autoincrement())
+  babyId         Int              @map("baby_id")
+  userId         Int              @map("user_id")
+  memberType     BabyMemberType   @map("member_type")
+  role           BabyMemberRole
+  status         BabyMemberStatus @default(ACTIVE)
+  permissions    Json?            @db.JsonB
+  createdAt      DateTime         @default(now()) @map("created_at")
+  revokedAt      DateTime?        @map("revoked_at")
+  revokedByUserId Int?            @map("revoked_by_user_id")
+  
+  baby           Baby             @relation(fields: [babyId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  revokedBy      User?            @relation("BabyMemberRevokedBy", fields: [revokedByUserId], references: [id])
+  
+  @@unique([babyId, userId])
+  @@index([babyId])
+  @@index([userId])
+  @@index([babyId, status])
+  @@map("baby_members")
+}
+
+model BabyInvite {
+  id             Int              @id @default(autoincrement())
+  babyId         Int              @map("baby_id")
+  emailInvited   String           @map("email_invited")
+  memberType     BabyMemberType   @map("member_type")
+  role           BabyMemberRole
+  tokenHash      String           @unique @map("token_hash") @db.VarChar(64)
+  expiresAt      DateTime         @map("expires_at")
+  status         BabyInviteStatus @default(PENDING)
+  invitedName    String?          @map("invited_name")
+  message        String?
+  createdByUserId Int             @map("created_by_user_id")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  acceptedAt     DateTime?        @map("accepted_at")
+  
+  baby           Baby             @relation(fields: [babyId], references: [id], onDelete: Cascade)
+  createdBy      User             @relation("BabyInviteCreatedBy", fields: [createdByUserId], references: [id])
+  
+  @@index([babyId])
+  @@index([emailInvited])
+  @@index([tokenHash])
+  @@index([status])
+  @@index([babyId, status])
+  @@map("baby_invites")
 }
 
 // ==========================================

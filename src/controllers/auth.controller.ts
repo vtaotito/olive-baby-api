@@ -119,12 +119,37 @@ export class AuthController {
   ): Promise<void> {
     try {
       const { email } = req.body;
-      await AuthService.forgotPassword(email);
+      
+      // Importar rate limiting
+      const { checkRateLimit, hashEmailForRateLimit, getClientIp } = await import('../services/rate-limit.service');
+      
+      // Obter IP do cliente
+      const clientIp = getClientIp(req);
+      const emailHash = hashEmailForRateLimit(email);
+      
+      // Rate limiting por IP (5 requisições a cada 10 minutos)
+      const ipLimit = await checkRateLimit(`forgot-password:ip:${clientIp}`, 10 * 60 * 1000, 5);
+      if (!ipLimit.allowed) {
+        throw AppError.tooManyRequests('Muitas tentativas. Tente novamente em alguns minutos.');
+      }
+      
+      // Rate limiting por email (3 requisições a cada 30 minutos)
+      const emailLimit = await checkRateLimit(`forgot-password:email:${emailHash}`, 30 * 60 * 1000, 3);
+      if (!emailLimit.allowed) {
+        throw AppError.tooManyRequests('Muitas tentativas para este email. Tente novamente em alguns minutos.');
+      }
+      
+      // Processar solicitação
+      await AuthService.forgotPassword(
+        email,
+        clientIp,
+        req.get('user-agent')
+      );
 
       // Sempre retorna sucesso para não revelar se email existe
       res.status(200).json({
         success: true,
-        message: 'Se o email existir, você receberá um link de recuperação',
+        message: 'Se o email existir em nossa base, você receberá um link de recuperação em breve.',
       });
     } catch (error) {
       next(error);
