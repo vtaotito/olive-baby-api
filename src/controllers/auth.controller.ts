@@ -3,6 +3,7 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { AuthService } from '../services/auth.service';
 import { ApiResponse } from '../types';
+import { AppError } from '../utils/errors/AppError';
 
 // Schemas de validação
 export const registerSchema = z.object({

@@ -321,19 +321,22 @@ export class AuthService {
     // Atualizar senha e invalidar tokens em transação
     const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
 
-    await prisma.$transaction([
+    await prisma.$transaction(async (tx) => {
       // Atualizar senha
-      prisma.user.update({
+      await tx.user.update({
         where: { id: user.id },
         data: { passwordHash },
-      }),
+      });
       // Marcar token como usado
-      markTokenAsUsed(tokenHash),
+      await tx.passwordReset.update({
+        where: { tokenHash },
+        data: { usedAt: new Date() },
+      });
       // Revogar todos os refresh tokens (forçar novo login)
-      prisma.refreshToken.deleteMany({
+      await tx.refreshToken.deleteMany({
         where: { userId: user.id },
-      }),
-    ]);
+      });
+    });
 
     // Log de segurança (sem token)
     logger.info('Password reset completed', {
