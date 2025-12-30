@@ -19,6 +19,7 @@ export const createBabySchema = z.object({
     'MOTHER', 'FATHER', 'GRANDMOTHER', 'GRANDFATHER',
     'AUNT', 'UNCLE', 'CAREGIVER', 'OTHER'
   ]),
+  babyCpf: z.string().optional(), // CPF do bebê (será hashado no backend)
 });
 
 export const updateBabySchema = z.object({
@@ -57,8 +58,8 @@ export class BabyController {
       }
 
       const caregiverId = await BabyController.getCaregiverId(req.user.userId);
-      const data = req.body;
-      const baby = await BabyService.create(caregiverId, data);
+      const data = req.body as z.infer<typeof createBabySchema>;
+      const baby = await BabyService.create(caregiverId, data, req.user.userId);
 
       res.status(201).json({
         success: true,
