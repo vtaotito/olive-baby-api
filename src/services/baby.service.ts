@@ -3,6 +3,8 @@ import { prisma } from '../config/database';
 import { AppError } from '../utils/errors/AppError';
 import { Relationship } from '@prisma/client';
 import { isFutureDate } from '../utils/helpers/date.helper';
+import { hashCpf, validateCpfFormat, cleanCpf } from '../utils/helpers/cpf-hash.helper';
+import { BabyMemberType, BabyMemberRole } from '@prisma/client';
 
 interface CreateBabyInput {
   name: string;
@@ -13,6 +15,7 @@ interface CreateBabyInput {
   birthWeightGrams?: number;
   birthLengthCm?: number;
   relationship: Relationship;
+  babyCpf?: string; // CPF do bebê (será hashado)
 }
 
 interface UpdateBabyInput {
@@ -32,40 +35,77 @@ interface AddCaregiverInput {
 }
 
 export class BabyService {
-  static async create(caregiverId: number, input: CreateBabyInput) {
+  static async create(caregiverId: number, input: CreateBabyInput, userId: number) {
     // Validar data de nascimento
     if (isFutureDate(input.birthDate)) {
       throw AppError.badRequest('Data de nascimento não pode ser futura');
     }
 
-    const { relationship, ...babyData } = input;
+    const { relationship, babyCpf, ...babyData } = input;
 
-    const baby = await prisma.baby.create({
-      data: {
-        ...babyData,
-        caregivers: {
-          create: {
-            caregiverId,
-            relationship,
-            isPrimary: true, // Primeiro cuidador é sempre primário
+    // Processar CPF se fornecido
+    let babyCpfHash: string | undefined;
+    if (babyCpf) {
+      if (!validateCpfFormat(babyCpf)) {
+        throw AppError.badRequest('CPF inválido');
+      }
+      
+      const cleanCpfValue = cleanCpf(babyCpf);
+      babyCpfHash = hashCpf(cleanCpfValue);
+      
+      // Verificar se já existe bebê com este CPF
+      const existingBaby = await prisma.baby.findUnique({
+        where: { babyCpfHash }
+      });
+      
+      if (existingBaby) {
+        throw AppError.conflict('Já existe um bebê cadastrado com este CPF');
+      }
+    }
+
+    // Criar bebê e vínculo em transação
+    const result = await prisma.$transaction(async (tx) => {
+      const baby = await tx.baby.create({
+        data: {
+          ...babyData,
+          babyCpfHash,
+          caregivers: {
+            create: {
+              caregiverId,
+              relationship,
+              isPrimary: true, // Primeiro cuidador é sempre primário
+            },
           },
         },
-      },
-      include: {
-        caregivers: {
-          include: {
-            caregiver: {
-              select: {
-                id: true,
-                fullName: true,
+        include: {
+          caregivers: {
+            include: {
+              caregiver: {
+                select: {
+                  id: true,
+                  fullName: true,
+                },
               },
             },
           },
         },
-      },
+      });
+
+      // Criar vínculo como OWNER_PARENT_1
+      await tx.babyMember.create({
+        data: {
+          babyId: baby.id,
+          userId,
+          memberType: BabyMemberType.PARENT,
+          role: BabyMemberRole.OWNER_PARENT_1,
+          status: 'ACTIVE'
+        }
+      });
+
+      return baby;
     });
 
-    return baby;
+    return result;
   }
 
   static async getById(babyId: number, caregiverId: number) {
@@ -131,7 +171,7 @@ export class BabyService {
         },
       },
       orderBy: {
-        birthDate: 'desc',
+        createdAt: 'asc', // Primeiro bebê criado primeiro (mais antigo)
       },
     });
 
