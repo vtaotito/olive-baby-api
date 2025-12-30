@@ -87,6 +87,8 @@ npx ts-node scripts/promote-admin.ts
 
 Todos os endpoints requerem autenticação e role `ADMIN`:
 
+### Endpoints Básicos
+
 | Método | Endpoint | Descrição |
 |--------|----------|-----------|
 | GET | `/admin/metrics?range=7d\|30d` | Dashboard KPIs |
@@ -98,6 +100,17 @@ Todos os endpoints requerem autenticação e role `ADMIN`:
 | PATCH | `/admin/users/:id/status` | Bloquear/Desbloquear usuário |
 | POST | `/admin/users/:id/impersonate` | Impersonar usuário (suporte) |
 | GET | `/admin/babies` | Listar bebês (paginado) |
+
+### Endpoints Avançados (Analytics)
+
+| Método | Endpoint | Descrição |
+|--------|----------|-----------|
+| GET | `/admin/funnel?range=7d\|30d` | Funil de ativação (cadastro → bebê → rotina) |
+| GET | `/admin/cohorts?unit=week&lookback=12` | Cohorts semanais com retenção D1/D7/D30 |
+| GET | `/admin/paywall?range=7d\|30d` | Paywall hits por feature + conversão |
+| GET | `/admin/upgrade-candidates` | Lead scoring para upgrade premium |
+| GET | `/admin/data-quality` | Completude de metadados por tipo de rotina |
+| GET | `/admin/errors?range=7d\|30d` | Error analytics (4xx/5xx) + fricção |
 
 ### Exemplos de Request
 
@@ -131,6 +144,10 @@ curl -X PATCH http://localhost:4000/api/v1/admin/users/123/status \
 - `/admin/users` - Gerenciamento de usuários
 - `/admin/babies` - Visualização de bebês
 - `/admin/usage` - Métricas de uso detalhadas
+- `/admin/activation` - Funil de ativação + Cohorts (retenção D1/D7/D30)
+- `/admin/monetization` - Paywall analytics + Upgrade candidates (lead scoring)
+- `/admin/quality` - Data quality por tipo de rotina
+- `/admin/errors` - Error analytics e fricção
 
 ## 📊 Sistema de Planos e Entitlements
 
@@ -213,17 +230,44 @@ npx prisma migrate resolve --applied 20251230000001_add_plan_subscription_audit
 
 ## 📝 Checklist de Deploy
 
-- [ ] Aplicar migration no banco de dados
+- [ ] Aplicar migration `20251230000001_add_plan_subscription_audit` no banco de dados
+- [ ] Aplicar migration `20251230_add_api_events` no banco de dados (para error tracking)
 - [ ] Gerar Prisma Client (`npx prisma generate`)
 - [ ] Reiniciar API para carregar novos endpoints
 - [ ] Promover pelo menos 1 usuário a ADMIN
 - [ ] Testar acesso ao `/admin` no frontend
 - [ ] Verificar KPIs e gráficos carregando
 - [ ] Testar alteração de plano de usuário
+- [ ] Verificar funil de ativação `/admin/activation`
+- [ ] Verificar paywall analytics `/admin/monetization`
+- [ ] Verificar data quality `/admin/quality`
+- [ ] Verificar error analytics `/admin/errors`
 - [ ] Verificar auditoria de eventos
+
+## 🗄️ Migrations Necessárias
+
+### 1. Plans, Subscriptions e Audit Events
+```bash
+psql -h <host> -U <user> -d olivebaby -f prisma/migrations/20251230000001_add_plan_subscription_audit/migration.sql
+```
+
+### 2. API Events (Error Tracking)
+```bash
+psql -h <host> -U <user> -d olivebaby -f prisma/migrations/20251230_add_api_events/migration.sql
+```
+
+### Via Docker (produção)
+```bash
+# Plans/Subscriptions/Audit
+docker exec -i postgres psql -U olivebaby -d olivebaby < prisma/migrations/20251230000001_add_plan_subscription_audit/migration.sql
+
+# API Events
+docker exec -i postgres psql -U olivebaby -d olivebaby < prisma/migrations/20251230_add_api_events/migration.sql
+```
 
 ---
 
 **Data de criação:** 30/12/2025
-**Versão:** 1.0.0
+**Última atualização:** 30/12/2025
+**Versão:** 2.0.0
 
