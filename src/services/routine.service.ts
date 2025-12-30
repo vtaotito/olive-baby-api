@@ -4,6 +4,11 @@ import { AppError } from '../utils/errors/AppError';
 import { RoutineType } from '@prisma/client';
 import { RoutineMeta } from '../types';
 import { calculateDurationSeconds } from '../utils/helpers/date.helper';
+import { 
+  normalizeAndSanitizeMeta, 
+  mergeRoutineMeta,
+  sanitizeRoutineMeta 
+} from '../utils/routineMeta.utils';
 
 interface CreateRoutineInput {
   babyId: number;
@@ -55,6 +60,12 @@ export class RoutineService {
       durationSeconds = calculateDurationSeconds(input.startTime, input.endTime);
     }
 
+    // Sanitizar meta baseado no routineType
+    const sanitizedMeta = normalizeAndSanitizeMeta(
+      input.routineType,
+      input.meta as Record<string, unknown>
+    );
+
     const routine = await prisma.routineLog.create({
       data: {
         babyId: input.babyId,
@@ -63,7 +74,7 @@ export class RoutineService {
         endTime: input.endTime,
         durationSeconds,
         notes: input.notes,
-        meta: input.meta as object,
+        meta: sanitizedMeta as object,
       },
     });
 
@@ -152,27 +163,60 @@ export class RoutineService {
   }
 
   static async update(id: number, caregiverId: number, input: UpdateRoutineInput) {
-    // Verificar acesso
-    await this.getById(id, caregiverId);
+    // Verificar acesso e obter rotina existente
+    const existingRoutine = await this.getById(id, caregiverId);
 
-    // Calcular duração se atualizou times
-    let durationSeconds: number | undefined;
-    if (input.endTime && input.startTime) {
-      durationSeconds = calculateDurationSeconds(input.startTime, input.endTime);
-    } else if (input.endTime) {
-      const routine = await prisma.routineLog.findUnique({ where: { id } });
-      if (routine) {
-        durationSeconds = calculateDurationSeconds(routine.startTime, input.endTime);
-      }
+    // Determinar startTime e endTime finais
+    const finalStartTime = input.startTime || existingRoutine.startTime;
+    const finalEndTime = input.endTime !== undefined 
+      ? input.endTime 
+      : existingRoutine.endTime;
+
+    // Recalcular duração se temos ambos os tempos
+    let durationSeconds: number | null = null;
+    if (finalEndTime && finalStartTime) {
+      durationSeconds = calculateDurationSeconds(finalStartTime, finalEndTime);
+    }
+
+    // Sanitizar meta baseado no routineType
+    let sanitizedMeta: Record<string, unknown> | undefined;
+    if (input.meta !== undefined) {
+      // Fazer merge do meta existente com o novo e sanitizar
+      sanitizedMeta = mergeRoutineMeta(
+        existingRoutine.routineType,
+        existingRoutine.meta as Record<string, unknown> | null,
+        input.meta as Record<string, unknown>
+      );
+    }
+
+    // Preparar dados para atualização
+    const updateData: {
+      startTime?: Date;
+      endTime?: Date | null;
+      notes?: string;
+      durationSeconds?: number | null;
+      meta?: object;
+    } = {};
+
+    if (input.startTime !== undefined) {
+      updateData.startTime = input.startTime;
+    }
+    if (input.endTime !== undefined) {
+      updateData.endTime = input.endTime;
+    }
+    if (input.notes !== undefined) {
+      updateData.notes = input.notes;
+    }
+    if (durationSeconds !== null) {
+      updateData.durationSeconds = durationSeconds;
+    }
+    if (sanitizedMeta !== undefined) {
+      updateData.meta = sanitizedMeta;
     }
 
     const routine = await prisma.routineLog.update({
       where: { id },
-      data: {
-        ...input,
-        durationSeconds,
-        meta: input.meta as object,
-      },
+      data: updateData,
     });
 
     return routine;
@@ -233,12 +277,15 @@ export class RoutineService {
       );
     }
 
+    // Sanitizar meta baseado no routineType
+    const sanitizedMeta = sanitizeRoutineMeta(routineType, meta as Record<string, unknown>);
+
     const routine = await prisma.routineLog.create({
       data: {
         babyId,
         routineType,
         startTime: new Date(),
-        meta: meta as object,
+        meta: sanitizedMeta as object,
         notes,
       },
     });
@@ -271,16 +318,19 @@ export class RoutineService {
     const endTime = new Date();
     const durationSeconds = calculateDurationSeconds(openRoutine.startTime, endTime);
 
-    // Merge dos metadados
-    const existingMeta = (openRoutine.meta as object) || {};
-    const mergedMeta = { ...existingMeta, ...meta };
+    // Merge e sanitização dos metadados
+    const sanitizedMeta = mergeRoutineMeta(
+      routineType,
+      openRoutine.meta as Record<string, unknown>,
+      meta as Record<string, unknown>
+    );
 
     const routine = await prisma.routineLog.update({
       where: { id: openRoutine.id },
       data: {
         endTime,
         durationSeconds,
-        meta: mergedMeta,
+        meta: sanitizedMeta as object,
         notes: notes || openRoutine.notes,
       },
     });
@@ -322,6 +372,12 @@ export class RoutineService {
       throw AppError.forbidden('Você não tem acesso a este bebê');
     }
 
+    // Sanitizar meta baseado no routineType
+    const sanitizedMeta = normalizeAndSanitizeMeta(
+      routineType,
+      meta as Record<string, unknown>
+    );
+
     const routine = await prisma.routineLog.create({
       data: {
         babyId,
@@ -329,7 +385,7 @@ export class RoutineService {
         startTime: new Date(),
         endTime: new Date(),
         durationSeconds: 0,
-        meta: meta as object,
+        meta: sanitizedMeta as object,
         notes,
       },
     });
