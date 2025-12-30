@@ -4,3 +4,4 @@ export * from './permission.middleware';
 export * from './validation.middleware';
 export * from './error.middleware';
 export * from './entitlements.middleware';
+export * from './apiEvents.middleware';

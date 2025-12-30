@@ -8,6 +8,7 @@ import rateLimit from 'express-rate-limit';
 import { env, isDevelopment } from './config/env';
 import { connectDatabase, disconnectDatabase } from './config/database';
 import { errorMiddleware, notFoundMiddleware } from './middlewares/error.middleware';
+import { apiEventsMiddleware } from './middlewares/apiEvents.middleware';
 import { logger } from './config/logger';
 import { monitoringService } from './services/monitoring.service';
 import routes from './routes';
@@ -90,6 +91,11 @@ app.use((req, res, next) => {
 
   next();
 });
+
+// ==========================================
+// API Events Logging (errors + slow requests)
+// ==========================================
+app.use(apiEventsMiddleware);
 
 // ==========================================
 // Rotas

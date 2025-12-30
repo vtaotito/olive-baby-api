@@ -651,3 +651,23 @@ model AuditEvent {
   @@index([createdAt])
   @@map("audit_events")
 }
+
+model ApiEvent {
+  id           Int       @id @default(autoincrement())
+  userId       Int?      @map("user_id")
+  route        String    @db.VarChar(255)
+  method       String    @db.VarChar(10)
+  statusCode   Int       @map("status_code")
+  durationMs   Int?      @map("duration_ms")
+  errorMessage String?   @map("error_message")
+  userAgent    String?   @map("user_agent") @db.VarChar(500)
+  ipAddress    String?   @map("ip_address") @db.VarChar(45)
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([route])
+  @@index([statusCode])
+  @@index([createdAt])
+  @@index([route, statusCode])
+  @@map("api_events")
+}

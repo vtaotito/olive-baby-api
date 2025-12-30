@@ -2,6 +2,8 @@
 import { Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { AdminService } from '../services/admin.service';
+import { AdminAnalyticsService } from '../services/adminAnalytics.service';
+import { ApiEventsService } from '../services/apiEvents.service';
 import { AuthenticatedRequest, ApiResponse } from '../types';
 import { PlanType, UserStatus } from '@prisma/client';
 
@@ -40,6 +42,31 @@ export const changeStatusSchema = z.object({
 
 export const usageQuerySchema = z.object({
   range: z.enum(['7d', '30d', '90d']).optional().default('30d'),
+});
+
+export const funnelQuerySchema = z.object({
+  range: z.enum(['7d', '30d']).optional().default('30d'),
+});
+
+export const cohortsQuerySchema = z.object({
+  unit: z.enum(['week']).optional().default('week'),
+  lookback: z.coerce.number().int().min(1).max(24).optional().default(12),
+});
+
+export const paywallQuerySchema = z.object({
+  range: z.enum(['7d', '30d']).optional().default('30d'),
+});
+
+export const upgradeCandidatesQuerySchema = z.object({
+  range: z.enum(['30d']).optional().default('30d'),
+});
+
+export const dataQualityQuerySchema = z.object({
+  range: z.enum(['30d']).optional().default('30d'),
+});
+
+export const errorsQuerySchema = z.object({
+  range: z.enum(['7d', '30d']).optional().default('7d'),
 });
 
 // ==========================================
@@ -264,6 +291,140 @@ export class AdminController {
       res.json({
         success: true,
         data: plans,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // ==========================================
+  // NEW ANALYTICS ENDPOINTS
+  // ==========================================
+
+  /**
+   * GET /admin/funnel
+   * Get activation funnel metrics
+   */
+  static async getActivationFunnel(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { range } = funnelQuerySchema.parse(req.query);
+      const funnel = await AdminAnalyticsService.getActivationFunnel(range as '7d' | '30d');
+
+      res.json({
+        success: true,
+        data: funnel,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /admin/cohorts
+   * Get cohort retention analysis
+   */
+  static async getCohorts(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { unit, lookback } = cohortsQuerySchema.parse(req.query);
+      const cohorts = await AdminAnalyticsService.getCohorts(unit as 'week', lookback);
+
+      res.json({
+        success: true,
+        data: cohorts,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /admin/paywall
+   * Get paywall analytics
+   */
+  static async getPaywallAnalytics(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { range } = paywallQuerySchema.parse(req.query);
+      const analytics = await AdminAnalyticsService.getPaywallAnalytics(range as '7d' | '30d');
+
+      res.json({
+        success: true,
+        data: analytics,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /admin/upgrade-candidates
+   * Get upgrade candidates with lead scoring
+   */
+  static async getUpgradeCandidates(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const candidates = await AdminAnalyticsService.getUpgradeCandidates('30d');
+
+      res.json({
+        success: true,
+        data: candidates,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /admin/data-quality
+   * Get data quality report
+   */
+  static async getDataQuality(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const report = await AdminAnalyticsService.getDataQuality('30d');
+
+      res.json({
+        success: true,
+        data: report,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /admin/errors
+   * Get error analytics
+   */
+  static async getErrorsAnalytics(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { range } = errorsQuerySchema.parse(req.query);
+      const analytics = await ApiEventsService.getErrorsAnalytics(range as '7d' | '30d');
+
+      res.json({
+        success: true,
+        data: analytics,
       });
     } catch (error) {
       next(error);

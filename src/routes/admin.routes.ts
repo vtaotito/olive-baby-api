@@ -10,6 +10,10 @@ import {
   changePlanSchema,
   changeStatusSchema,
   usageQuerySchema,
+  funnelQuerySchema,
+  cohortsQuerySchema,
+  paywallQuerySchema,
+  errorsQuerySchema,
 } from '../controllers/admin.controller';
 
 const router = Router();
@@ -79,6 +83,44 @@ router.get(
   '/babies',
   validateQuery(babiesQuerySchema),
   AdminController.listBabies
+);
+
+// ==========================================
+// Analytics & Insights
+// ==========================================
+
+// GET /admin/funnel - Activation funnel
+router.get(
+  '/funnel',
+  validateQuery(funnelQuerySchema),
+  AdminController.getActivationFunnel
+);
+
+// GET /admin/cohorts - Cohort retention
+router.get(
+  '/cohorts',
+  validateQuery(cohortsQuerySchema),
+  AdminController.getCohorts
+);
+
+// GET /admin/paywall - Paywall analytics
+router.get(
+  '/paywall',
+  validateQuery(paywallQuerySchema),
+  AdminController.getPaywallAnalytics
+);
+
+// GET /admin/upgrade-candidates - Lead scoring
+router.get('/upgrade-candidates', AdminController.getUpgradeCandidates);
+
+// GET /admin/data-quality - Data quality report
+router.get('/data-quality', AdminController.getDataQuality);
+
+// GET /admin/errors - Error analytics
+router.get(
+  '/errors',
+  validateQuery(errorsQuerySchema),
+  AdminController.getErrorsAnalytics
 );
 
 export default router;
