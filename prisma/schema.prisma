@@ -118,6 +118,7 @@ model User {
   babyMembers   BabyMember[]
   babyInvitesCreated BabyInvite[] @relation("BabyInviteCreatedBy")
   babyMembersRevoked BabyMember[] @relation("BabyMemberRevokedBy")
+  settings      UserSettings?
 
   @@map("users")
 }
@@ -303,6 +304,35 @@ model PasswordReset {
   @@index([userId, usedAt])
   @@index([expiresAt])
   @@map("password_resets")
+}
+
+model UserSettings {
+  id                   Int      @id @default(autoincrement())
+  userId               Int      @unique @map("user_id")
+  
+  // Notification preferences
+  pushEnabled          Boolean  @default(true) @map("push_enabled")
+  emailEnabled         Boolean  @default(false) @map("email_enabled")
+  soundEnabled         Boolean  @default(true) @map("sound_enabled")
+  
+  // Quiet hours
+  quietHoursEnabled    Boolean  @default(false) @map("quiet_hours_enabled")
+  quietHoursStart      String   @default("22:00") @map("quiet_hours_start") @db.VarChar(5)
+  quietHoursEnd        String   @default("07:00") @map("quiet_hours_end") @db.VarChar(5)
+  
+  // Routine notifications (JSON for flexibility)
+  routineNotifications Json     @default("{\"feeding\":true,\"sleep\":true,\"diaper\":false,\"bath\":true,\"extraction\":false}") @map("routine_notifications") @db.JsonB
+  
+  // Appearance
+  theme                String   @default("system") @db.VarChar(20)
+  language             String   @default("pt-BR") @db.VarChar(10)
+  
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+  
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("user_settings")
 }
 
 // ==========================================

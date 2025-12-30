@@ -6,9 +6,12 @@ import {
   loginSchema, 
   refreshSchema,
   forgotPasswordSchema,
-  resetPasswordSchema 
+  resetPasswordSchema,
+  changePasswordSchema,
+  deleteAccountSchema
 } from '../controllers/auth.controller';
 import { validateBody } from '../middlewares/validation.middleware';
+import { authMiddleware } from '../middlewares/auth.middleware';
 
 const router = Router();
 
@@ -29,5 +32,11 @@ router.post('/forgot-password', validateBody(forgotPasswordSchema), AuthControll
 
 // POST /api/v1/auth/reset-password - Reseta senha
 router.post('/reset-password', validateBody(resetPasswordSchema), AuthController.resetPassword);
+
+// POST /api/v1/auth/change-password - Altera senha (autenticado)
+router.post('/change-password', authMiddleware, validateBody(changePasswordSchema), AuthController.changePassword);
+
+// DELETE /api/v1/auth/account - Exclui conta (autenticado)
+router.delete('/account', authMiddleware, validateBody(deleteAccountSchema), AuthController.deleteAccount);
 
 export default router;

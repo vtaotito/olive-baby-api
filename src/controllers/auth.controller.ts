@@ -37,6 +37,15 @@ export const resetPasswordSchema = z.object({
   password: z.string().min(8, 'Senha deve ter no mínimo 8 caracteres'),
 });
 
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Senha atual obrigatória'),
+  newPassword: z.string().min(8, 'Nova senha deve ter no mínimo 8 caracteres'),
+});
+
+export const deleteAccountSchema = z.object({
+  password: z.string().min(1, 'Senha obrigatória para confirmar exclusão'),
+});
+
 export class AuthController {
   static async register(
     req: Request,
@@ -169,6 +178,54 @@ export class AuthController {
       res.status(200).json({
         success: true,
         message: 'Senha alterada com sucesso',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async changePassword(
+    req: Request,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { currentPassword, newPassword } = req.body;
+      const userId = (req as any).user?.userId;
+
+      if (!userId) {
+        throw AppError.unauthorized('Usuário não autenticado');
+      }
+
+      await AuthService.changePassword(userId, currentPassword, newPassword);
+
+      res.status(200).json({
+        success: true,
+        message: 'Senha alterada com sucesso',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async deleteAccount(
+    req: Request,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { password } = req.body;
+      const userId = (req as any).user?.userId;
+
+      if (!userId) {
+        throw AppError.unauthorized('Usuário não autenticado');
+      }
+
+      await AuthService.deleteAccount(userId, password);
+
+      res.status(200).json({
+        success: true,
+        message: 'Conta excluída com sucesso',
       });
     } catch (error) {
       next(error);

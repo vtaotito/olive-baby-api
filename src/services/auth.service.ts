@@ -345,4 +345,123 @@ export class AuthService {
       ip: resetRecord.requestIp,
     });
   }
+
+  static async changePassword(
+    userId: number,
+    currentPassword: string,
+    newPassword: string
+  ): Promise<void> {
+    // Buscar usuário
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw AppError.notFound('Usuário não encontrado');
+    }
+
+    // Verificar senha atual
+    const isValidPassword = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isValidPassword) {
+      throw AppError.badRequest('Senha atual incorreta');
+    }
+
+    // Validar nova senha
+    const passwordValidation = validatePassword(newPassword);
+    if (!passwordValidation.valid) {
+      throw AppError.badRequest('Nova senha inválida', { password: passwordValidation.errors });
+    }
+
+    // Verificar se nova senha é diferente da atual
+    const isSamePassword = await bcrypt.compare(newPassword, user.passwordHash);
+    if (isSamePassword) {
+      throw AppError.badRequest('A nova senha deve ser diferente da senha atual');
+    }
+
+    // Hash da nova senha
+    const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+
+    // Atualizar senha
+    await prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+
+    // Log de segurança
+    logger.info('Password changed', {
+      userId: user.id,
+      emailPrefix: user.email.substring(0, 3) + '***',
+    });
+  }
+
+  static async deleteAccount(userId: number, password: string): Promise<void> {
+    // Buscar usuário
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        caregiver: {
+          include: {
+            babies: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw AppError.notFound('Usuário não encontrado');
+    }
+
+    // Verificar senha
+    const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+    if (!isValidPassword) {
+      throw AppError.badRequest('Senha incorreta');
+    }
+
+    // Executar exclusão em transação
+    await prisma.$transaction(async (tx) => {
+      // Revogar todos os refresh tokens
+      await tx.refreshToken.deleteMany({
+        where: { userId },
+      });
+
+      // Revogar todos os password resets
+      await tx.passwordReset.deleteMany({
+        where: { userId },
+      });
+
+      // Se tiver caregiver, verificar bebês
+      if (user.caregiver) {
+        // Remover vínculos com bebês
+        await tx.caregiverBaby.deleteMany({
+          where: { caregiverId: user.caregiver.id },
+        });
+
+        // Deletar caregiver
+        await tx.caregiver.delete({
+          where: { id: user.caregiver.id },
+        });
+      }
+
+      // Remover memberships de bebês
+      await tx.babyMember.deleteMany({
+        where: { userId },
+      });
+
+      // Deletar sessões de chat AI
+      await tx.aiChatSession.deleteMany({
+        where: { userId },
+      });
+
+      // Deletar usuário
+      await tx.user.delete({
+        where: { id: userId },
+      });
+    });
+
+    // Log de segurança
+    logger.info('Account deleted', {
+      userId: user.id,
+      emailPrefix: user.email.substring(0, 3) + '***',
+    });
+  }
 }

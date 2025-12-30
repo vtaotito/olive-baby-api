@@ -13,6 +13,7 @@ import monitoringRoutes from './monitoring.routes';
 import aiRoutes from './ai.routes';
 import babyMemberRoutes from './baby-member.routes';
 import babyInviteRoutes from './baby-invite.routes';
+import settingsRoutes from './settings.routes';
 
 const router = Router();
 
@@ -36,6 +37,7 @@ router.use('/export', exportRoutes);
 router.use('/professionals', professionalRoutes);
 router.use('/monitoring', monitoringRoutes);
 router.use('/ai', aiRoutes);
+router.use('/settings', settingsRoutes);
 
 // Baby-scoped routes (nested under /babies/:babyId/)
 // IMPORTANTE: Registrar rotas específicas ANTES das rotas genéricas de /babies
