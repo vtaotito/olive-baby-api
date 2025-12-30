@@ -119,3 +119,7 @@ Write-Host "   - Check application at: https://app.olivebaby.com.br"
 Write-Host "   - View logs: docker compose -f docker-compose.vps.ai.yml logs -f"
 Write-Host "   - Run AI ingest: .\deploy-ai.ps1 -Ingest"
 Write-Host ""
+
+
+
+

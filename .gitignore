@@ -33,3 +33,12 @@ prisma/migrations/*_migration.sql.pending
 # Temporary files
 *.tmp
 *.temp
+
+# Deploy files with secrets
+docker-compose.vps-update.yml
+docker-compose.vps-updated.yml
+docker-compose.vps.ai.yml
+docker-compose.vps-ai.yml
+
+# Archive files
+*.zip

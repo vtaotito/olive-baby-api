@@ -92,3 +92,7 @@ Remove-Item -Recurse -Force $tempDir
 Write-Host ""
 Write-Host "Deploy package ready: $archiveName" -ForegroundColor Green
 Write-Host "Domain: $domain" -ForegroundColor Cyan
+
+
+
+

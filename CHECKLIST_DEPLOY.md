@@ -123,3 +123,7 @@ docker-compose -f docker-compose.vps.ai.yml exec postgres psql -U olivebaby -d o
 4. ⚠️ Configurar alertas (email, webhook)
 5. ⚠️ Otimizar índices do banco (se necessário)
 6. ⚠️ Configurar CDN para assets estáticos
+
+
+
+

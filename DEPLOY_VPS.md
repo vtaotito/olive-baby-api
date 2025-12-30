@@ -196,3 +196,7 @@ docker compose -f docker-compose.vps.ai.yml logs
 - A ingestÃ£o da base de conhecimento pode levar 2-5 minutos
 - Certifique-se de que as portas 80 e 443 estÃ£o abertas no firewall
 - Para produÃ§Ã£o, configure SSL/TLS antes de expor publicamente
+
+
+
+

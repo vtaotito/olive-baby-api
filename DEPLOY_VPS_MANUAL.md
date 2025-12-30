@@ -192,3 +192,7 @@ chmod +x deploy-ai.sh
 2. âš ï¸ Configurar backup automÃ¡tico
 3. âš ï¸ Monitoramento
 4. âš ï¸ Rate limiting ajustado
+
+
+
+

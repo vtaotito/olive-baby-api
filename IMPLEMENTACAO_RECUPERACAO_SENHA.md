@@ -282,3 +282,4 @@ VITE_API_URL=https://oliecare.cloud/api/v1
 - Validação de senha: `src/utils/validators/password.validator.ts`
 - Rate limiting: `src/services/rate-limit.service.ts`
 - Password reset: `src/services/password-reset.service.ts`
+

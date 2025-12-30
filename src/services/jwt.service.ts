@@ -6,9 +6,9 @@ import { prisma } from '../config/database';
 import { v4 as uuidv4 } from 'uuid';
 
 export class JwtService {
-  static generateAccessToken(payload: JwtPayload): string {
+  static generateAccessToken(payload: JwtPayload, expiresIn?: string): string {
     return jwt.sign(payload, JWT_CONFIG.accessToken.secret, {
-      expiresIn: JWT_CONFIG.accessToken.expiresIn,
+      expiresIn: expiresIn || JWT_CONFIG.accessToken.expiresIn,
     } as SignOptions);
   }
 

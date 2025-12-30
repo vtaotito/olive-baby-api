@@ -101,3 +101,7 @@ docker compose -f docker-compose.vps.ai.yml exec postgres psql -U olivebaby -d o
 **âœ… CONFIGURAÃ‡ÃƒO LOCAL COMPLETA**
 
 O `.env` estÃ¡ configurado e os scripts estÃ£o prontos. O deploy pode ser executado na VPS seguindo o guia em `DEPLOY_VPS.md`.
+
+
+
+

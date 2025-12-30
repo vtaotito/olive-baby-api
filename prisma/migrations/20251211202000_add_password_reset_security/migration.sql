@@ -1,11 +1,26 @@
 -- AlterTable: password_resets
 -- Migração para melhorar segurança do reset de senha
 
--- Primeiro, deletar tabela antiga se existir (dados serão perdidos, mas é desenvolvimento)
-DROP TABLE IF EXISTS "password_resets";
+-- Verificar se tabela antiga existe e tem estrutura diferente
+DO $$
+BEGIN
+  -- Se tabela existe mas não tem token_hash, recriar
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'public' AND table_name = 'password_resets'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'password_resets' 
+    AND column_name = 'token_hash'
+  ) THEN
+    -- Deletar tabela antiga
+    DROP TABLE IF EXISTS "password_resets" CASCADE;
+  END IF;
+END $$;
 
--- Criar nova tabela com estrutura segura
-CREATE TABLE "password_resets" (
+-- Criar nova tabela com estrutura segura (se não existir)
+CREATE TABLE IF NOT EXISTS "password_resets" (
     "id" SERIAL NOT NULL,
     "user_id" INTEGER NOT NULL,
     "token_hash" VARCHAR(64) NOT NULL,
@@ -18,12 +33,23 @@ CREATE TABLE "password_resets" (
     CONSTRAINT "password_resets_pkey" PRIMARY KEY ("id")
 );
 
--- Criar índices
-CREATE UNIQUE INDEX "password_resets_token_hash_key" ON "password_resets"("token_hash");
-CREATE INDEX "password_resets_user_id_idx" ON "password_resets"("user_id");
-CREATE INDEX "password_resets_token_hash_idx" ON "password_resets"("token_hash");
-CREATE INDEX "password_resets_user_id_used_at_idx" ON "password_resets"("user_id", "used_at");
-CREATE INDEX "password_resets_expires_at_idx" ON "password_resets"("expires_at");
+-- Criar índices (se não existirem)
+CREATE UNIQUE INDEX IF NOT EXISTS "password_resets_token_hash_key" ON "password_resets"("token_hash");
+CREATE INDEX IF NOT EXISTS "password_resets_user_id_idx" ON "password_resets"("user_id");
+CREATE INDEX IF NOT EXISTS "password_resets_token_hash_idx" ON "password_resets"("token_hash");
+CREATE INDEX IF NOT EXISTS "password_resets_user_id_used_at_idx" ON "password_resets"("user_id", "used_at");
+CREATE INDEX IF NOT EXISTS "password_resets_expires_at_idx" ON "password_resets"("expires_at");
 
--- Adicionar foreign key
-ALTER TABLE "password_resets" ADD CONSTRAINT "password_resets_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+-- Adicionar foreign key (se não existir)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints 
+    WHERE constraint_name = 'password_resets_user_id_fkey'
+  ) THEN
+    ALTER TABLE "password_resets" 
+    ADD CONSTRAINT "password_resets_user_id_fkey" 
+    FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+

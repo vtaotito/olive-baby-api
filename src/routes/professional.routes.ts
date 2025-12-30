@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import * as professionalController from '../controllers/professional.controller';
 import { authenticate, requireCaregiver, requireProfessional } from '../middlewares/auth.middleware';
+import { requireProfessionalInviteAllowed } from '../middlewares/entitlements.middleware';
 
 const router = Router();
 
@@ -24,7 +25,8 @@ export const babyProfessionalRouter = Router({ mergeParams: true });
 babyProfessionalRouter.get('/', authenticate, requireCaregiver, professionalController.getProfessionals);
 
 // Invite a professional
-babyProfessionalRouter.post('/invite', authenticate, requireCaregiver, professionalController.inviteProfessional);
+// Verifica: limite do plano de profissionais
+babyProfessionalRouter.post('/invite', authenticate, requireCaregiver, requireProfessionalInviteAllowed(), professionalController.inviteProfessional);
 
 // Resend invite
 babyProfessionalRouter.post('/:id/resend-invite', authenticate, requireCaregiver, professionalController.resendInvite);

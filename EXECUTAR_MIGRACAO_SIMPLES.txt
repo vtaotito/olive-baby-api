@@ -1,0 +1,84 @@
+========================================
+APLICAR MIGRAÇÃO BABY SHARING - MÉTODO SIMPLES
+========================================
+
+PROBLEMA: A tabela baby_members não existe, causando erro 500.
+
+SOLUÇÃO RÁPIDA: Execute diretamente no VPS (sem copiar arquivo)
+
+1. Conecte via SSH:
+   ssh root@srv1188492.hstgr.cloud
+
+2. Execute este comando completo (copie e cole tudo de uma vez):
+
+docker exec -i olivebaby-db psql -U olivebaby -d olivebaby << 'SQL_EOF'
+-- Criar ENUMs
+DO $$ BEGIN CREATE TYPE "BabyMemberType" AS ENUM ('PARENT', 'FAMILY', 'PROFESSIONAL'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE TYPE "BabyMemberRole" AS ENUM ('OWNER_PARENT_1', 'OWNER_PARENT_2', 'FAMILY_VIEWER', 'FAMILY_EDITOR', 'PEDIATRICIAN', 'OBGYN', 'LACTATION_CONSULTANT', 'OTHER'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE TYPE "BabyMemberStatus" AS ENUM ('ACTIVE', 'PENDING', 'REVOKED'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE TYPE "BabyInviteStatus" AS ENUM ('PENDING', 'ACCEPTED', 'EXPIRED', 'REVOKED'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- Criar tabela baby_members
+CREATE TABLE IF NOT EXISTS "baby_members" (
+  "id" SERIAL PRIMARY KEY,
+  "baby_id" INTEGER NOT NULL,
+  "user_id" INTEGER NOT NULL,
+  "member_type" "BabyMemberType" NOT NULL,
+  "role" "BabyMemberRole" NOT NULL,
+  "status" "BabyMemberStatus" NOT NULL DEFAULT 'ACTIVE',
+  "permissions" JSONB,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "revoked_at" TIMESTAMP(3),
+  "revoked_by_user_id" INTEGER,
+  CONSTRAINT "baby_members_baby_id_fkey" FOREIGN KEY ("baby_id") REFERENCES "babies"("id") ON DELETE CASCADE,
+  CONSTRAINT "baby_members_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE,
+  CONSTRAINT "baby_members_revoked_by_user_id_fkey" FOREIGN KEY ("revoked_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL,
+  CONSTRAINT "baby_members_baby_id_user_id_key" UNIQUE ("baby_id", "user_id")
+);
+
+-- Criar tabela baby_invites
+CREATE TABLE IF NOT EXISTS "baby_invites" (
+  "id" SERIAL PRIMARY KEY,
+  "baby_id" INTEGER NOT NULL,
+  "email_invited" VARCHAR(255) NOT NULL,
+  "member_type" "BabyMemberType" NOT NULL,
+  "role" "BabyMemberRole" NOT NULL,
+  "token_hash" VARCHAR(64) NOT NULL UNIQUE,
+  "expires_at" TIMESTAMP(3) NOT NULL,
+  "status" "BabyInviteStatus" NOT NULL DEFAULT 'PENDING',
+  "invited_name" VARCHAR(255),
+  "message" TEXT,
+  "created_by_user_id" INTEGER NOT NULL,
+  "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "accepted_at" TIMESTAMP(3),
+  CONSTRAINT "baby_invites_baby_id_fkey" FOREIGN KEY ("baby_id") REFERENCES "babies"("id") ON DELETE CASCADE,
+  CONSTRAINT "baby_invites_created_by_user_id_fkey" FOREIGN KEY ("created_by_user_id") REFERENCES "users"("id") ON DELETE CASCADE
+);
+
+-- Criar índices
+CREATE INDEX IF NOT EXISTS "baby_members_baby_id_idx" ON "baby_members"("baby_id");
+CREATE INDEX IF NOT EXISTS "baby_members_user_id_idx" ON "baby_members"("user_id");
+CREATE INDEX IF NOT EXISTS "baby_members_baby_status_idx" ON "baby_members"("baby_id", "status");
+CREATE INDEX IF NOT EXISTS "baby_invites_baby_id_idx" ON "baby_invites"("baby_id");
+CREATE INDEX IF NOT EXISTS "baby_invites_email_invited_idx" ON "baby_invites"("email_invited");
+CREATE INDEX IF NOT EXISTS "baby_invites_token_hash_idx" ON "baby_invites"("token_hash");
+CREATE INDEX IF NOT EXISTS "baby_invites_status_idx" ON "baby_invites"("status");
+CREATE INDEX IF NOT EXISTS "baby_invites_baby_status_idx" ON "baby_invites"("baby_id", "status");
+SQL_EOF
+
+3. Verifique se funcionou:
+   docker exec -i olivebaby-db psql -U olivebaby -d olivebaby -c "SELECT COUNT(*) FROM baby_members;"
+
+========================================
+ALTERNATIVA: Usar arquivo SQL
+========================================
+
+Se preferir usar arquivo, no PowerShell do Windows execute:
+
+cd "C:\Users\Vitor A. Tito\Documents\GPTO\OliverBaby\olive-baby-api"
+scp apply-baby-sharing-migration.sql root@srv1188492.hstgr.cloud:/tmp/
+
+Depois no VPS:
+docker exec -i olivebaby-db psql -U olivebaby -d olivebaby < /tmp/apply-baby-sharing-migration.sql
+
+========================================

@@ -34,8 +34,8 @@ export class AppError extends Error {
     return new AppError(message, 401);
   }
 
-  static forbidden(message: string = 'Acesso negado'): AppError {
-    return new AppError(message, 403);
+  static forbidden(message: string = 'Acesso negado', extra?: Record<string, any>): AppError {
+    return new AppError(message, 403, true, undefined, extra?.errorCode, extra);
   }
 
   static notFound(message: string = 'Recurso não encontrado'): AppError {

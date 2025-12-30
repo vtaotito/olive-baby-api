@@ -1,0 +1,34 @@
+========================================
+COMANDO SIMPLES PARA EXECUTAR NO VPS
+========================================
+
+Após conectar via SSH (ssh root@srv1188492.hstgr.cloud),
+execute APENAS este comando:
+
+docker exec -i olivebaby-db psql -U olivebaby -d olivebaby -c "ALTER TABLE babies ADD COLUMN IF NOT EXISTS baby_cpf_hash VARCHAR(64) NULL; CREATE UNIQUE INDEX IF NOT EXISTS babies_baby_cpf_hash_key ON babies(baby_cpf_hash) WHERE baby_cpf_hash IS NOT NULL;"
+
+========================================
+OU use o arquivo SQL diretamente:
+========================================
+
+1. Copie o arquivo add_baby_cpf_hash_column.sql para o VPS:
+   scp add_baby_cpf_hash_column.sql root@srv1188492.hstgr.cloud:/tmp/
+
+2. No VPS, execute:
+   docker exec -i olivebaby-db psql -U olivebaby -d olivebaby < /tmp/add_baby_cpf_hash_column.sql
+
+========================================
+OU execute linha por linha:
+========================================
+
+docker exec -it olivebaby-db psql -U olivebaby -d olivebaby
+
+Depois, dentro do psql, execute:
+
+ALTER TABLE babies ADD COLUMN IF NOT EXISTS baby_cpf_hash VARCHAR(64) NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS babies_baby_cpf_hash_key ON babies(baby_cpf_hash) WHERE baby_cpf_hash IS NOT NULL;
+
+\q
+
+========================================

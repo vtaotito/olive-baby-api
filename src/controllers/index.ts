@@ -9,3 +9,5 @@ export * from './milestone.controller';
 export * from './export.controller';
 export * from './professional.controller';
 export * from './ai.controller';
+export * from './baby-member.controller';
+export * from './baby-invite.controller';

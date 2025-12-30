@@ -1,0 +1,78 @@
+========================================
+APLICAR MIGRAÇÃO BABY SHARING NO VPS
+========================================
+
+PROBLEMA: A tabela baby_members não existe, causando erro 500.
+
+SOLUÇÃO: Escolha UM dos métodos abaixo:
+
+========================================
+MÉTODO 1: Executar diretamente (MAIS FÁCIL - RECOMENDADO)
+========================================
+
+Conecte via SSH e execute tudo de uma vez:
+
+ssh root@srv1188492.hstgr.cloud
+
+Depois execute o comando completo do arquivo EXECUTAR_MIGRACAO_SIMPLES.txt
+(ou veja o método abaixo)
+
+========================================
+MÉTODO 2: Copiar arquivo do Windows (PowerShell)
+========================================
+
+No PowerShell do Windows, execute:
+
+cd "C:\Users\Vitor A. Tito\Documents\GPTO\OliverBaby\olive-baby-api"
+scp apply-baby-sharing-migration.sql root@srv1188492.hstgr.cloud:/tmp/
+
+OU use o script automático:
+.\copiar-migracao-vps.ps1
+
+Depois conecte via SSH e execute:
+
+ssh root@srv1188492.hstgr.cloud
+docker exec -i olivebaby-db psql -U olivebaby -d olivebaby < /tmp/apply-baby-sharing-migration.sql
+
+========================================
+MÉTODO 2: Criar arquivo diretamente no VPS (MAIS FÁCIL)
+========================================
+
+1. Conecte via SSH:
+   ssh root@srv1188492.hstgr.cloud
+
+2. Crie o arquivo SQL diretamente no VPS:
+   nano /tmp/apply-baby-sharing-migration.sql
+
+3. Cole o conteúdo do arquivo apply-baby-sharing-migration.sql
+   (abra o arquivo no seu computador e copie todo o conteúdo)
+
+4. Salve (Ctrl+O, Enter, Ctrl+X)
+
+5. Execute:
+   docker exec -i olivebaby-db psql -U olivebaby -d olivebaby < /tmp/apply-baby-sharing-migration.sql
+
+========================================
+MÉTODO 3: Executar SQL diretamente (SEM ARQUIVO)
+========================================
+
+Conecte via SSH e execute diretamente:
+
+ssh root@srv1188492.hstgr.cloud
+
+Depois execute o conteúdo do arquivo apply-baby-sharing-migration.sql
+linha por linha dentro do psql:
+
+docker exec -it olivebaby-db psql -U olivebaby -d olivebaby
+
+========================================
+VERIFICAÇÃO
+========================================
+
+Após executar, verifique:
+
+docker exec -i olivebaby-db psql -U olivebaby -d olivebaby -c "SELECT COUNT(*) FROM baby_members;"
+
+Deve retornar um número (pode ser 0 se não houver membros ainda).
+
+========================================

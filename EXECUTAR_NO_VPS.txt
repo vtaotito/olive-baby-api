@@ -1,0 +1,64 @@
+========================================
+EXECUTAR MIGRAÇÃO NO VPS - MÉTODO SIMPLES
+========================================
+
+Após conectar via SSH (ssh root@srv1188492.hstgr.cloud),
+escolha UM dos métodos abaixo:
+
+========================================
+MÉTODO 1: Comando Único (MAIS FÁCIL)
+========================================
+
+Execute este comando completo:
+
+docker exec -i olivebaby-db psql -U olivebaby -d olivebaby -c "ALTER TABLE babies ADD COLUMN IF NOT EXISTS baby_cpf_hash VARCHAR(64) NULL; CREATE UNIQUE INDEX IF NOT EXISTS babies_baby_cpf_hash_key ON babies(baby_cpf_hash) WHERE baby_cpf_hash IS NOT NULL;"
+
+Depois verifique:
+
+docker exec -i olivebaby-db psql -U olivebaby -d olivebaby -c "SELECT column_name FROM information_schema.columns WHERE table_name = 'babies' AND column_name = 'baby_cpf_hash';"
+
+========================================
+MÉTODO 2: Usar Arquivo SQL
+========================================
+
+1. No seu computador local, copie o arquivo para o VPS:
+   scp migracao-simples.sql root@srv1188492.hstgr.cloud:/tmp/
+
+2. No VPS, execute:
+   docker exec -i olivebaby-db psql -U olivebaby -d olivebaby < /tmp/migracao-simples.sql
+
+========================================
+MÉTODO 3: Entrar no PostgreSQL e Executar
+========================================
+
+1. Entre no container do PostgreSQL:
+   docker exec -it olivebaby-db psql -U olivebaby -d olivebaby
+
+2. Execute os comandos SQL (um de cada vez):
+   ALTER TABLE babies ADD COLUMN IF NOT EXISTS baby_cpf_hash VARCHAR(64) NULL;
+   CREATE UNIQUE INDEX IF NOT EXISTS babies_baby_cpf_hash_key ON babies(baby_cpf_hash) WHERE baby_cpf_hash IS NOT NULL;
+   SELECT column_name FROM information_schema.columns WHERE table_name = 'babies' AND column_name = 'baby_cpf_hash';
+   \q
+
+========================================
+MÉTODO 4: Criar Script no VPS
+========================================
+
+1. No VPS, crie o arquivo:
+   nano /tmp/migrate.sh
+
+2. Cole este conteúdo:
+   #!/bin/bash
+   docker exec -i olivebaby-db psql -U olivebaby -d olivebaby << 'EOF'
+   ALTER TABLE babies ADD COLUMN IF NOT EXISTS baby_cpf_hash VARCHAR(64) NULL;
+   CREATE UNIQUE INDEX IF NOT EXISTS babies_baby_cpf_hash_key ON babies(baby_cpf_hash) WHERE baby_cpf_hash IS NOT NULL;
+   SELECT column_name FROM information_schema.columns WHERE table_name = 'babies' AND column_name = 'baby_cpf_hash';
+   EOF
+
+3. Salve (Ctrl+O, Enter, Ctrl+X)
+
+4. Execute:
+   chmod +x /tmp/migrate.sh
+   /tmp/migrate.sh
+
+========================================

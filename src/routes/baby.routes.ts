@@ -9,6 +9,7 @@ import {
 import { authMiddleware } from '../middlewares/auth.middleware';
 import { validateBody } from '../middlewares/validation.middleware';
 import { requirePermission } from '../middlewares/permission.middleware';
+import { requireBabyCreationAllowed } from '../middlewares/entitlements.middleware';
 
 const router = Router();
 
@@ -19,9 +20,11 @@ router.use(authMiddleware);
 router.get('/', BabyController.list);
 
 // POST /api/v1/babies - Cadastra bebê
+// Verifica: permissão de role E limite do plano
 router.post(
   '/', 
   requirePermission('canManageBabies'),
+  requireBabyCreationAllowed(),
   validateBody(createBabySchema), 
   BabyController.create
 );

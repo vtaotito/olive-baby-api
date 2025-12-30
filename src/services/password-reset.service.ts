@@ -112,3 +112,4 @@ export async function cleanupExpiredTokens() {
   logger.info(`Cleaned up ${result.count} expired password reset tokens`);
   return result.count;
 }
+

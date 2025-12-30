@@ -167,3 +167,7 @@ Verifique se o `nginx.conf` está montado corretamente e se as rotas estão conf
 5. ⚠️ Configurar SSL/TLS (Let's Encrypt)
 6. ⚠️ Configurar backup automático
 7. ⚠️ Monitoramento (Sentry, DataDog, etc.)
+
+
+
+

@@ -1,0 +1,74 @@
+========================================
+EXECUTAR MIGRAÇÃO baby_cpf_hash - MANUAL
+========================================
+
+INFORMAÇÕES:
+- VPS IP: 72.62.11.30
+- Usuário SSH: root
+- Senha SSH: @VWFusca1978@
+- Container DB: olivebaby-db
+
+========================================
+MÉTODO 1: Via SSH Manual
+========================================
+
+1. Abra um terminal SSH (PowerShell, CMD, ou terminal Linux/Mac)
+
+2. Conecte-se ao VPS:
+   ssh root@72.62.11.30
+   (Digite a senha quando solicitado: @VWFusca1978@)
+
+3. Execute o comando SQL:
+   docker exec -i olivebaby-db psql -U olivebaby -d olivebaby << 'EOF'
+   DO $$
+   BEGIN
+     IF NOT EXISTS (
+       SELECT 1 FROM information_schema.columns 
+       WHERE table_schema = 'public' 
+       AND table_name = 'babies' 
+       AND column_name = 'baby_cpf_hash'
+     ) THEN
+       ALTER TABLE "babies" 
+       ADD COLUMN "baby_cpf_hash" VARCHAR(64) NULL;
+       
+       CREATE UNIQUE INDEX IF NOT EXISTS "babies_baby_cpf_hash_key" 
+       ON "babies"("baby_cpf_hash") 
+       WHERE "baby_cpf_hash" IS NOT NULL;
+       
+       RAISE NOTICE 'Coluna baby_cpf_hash adicionada com sucesso!';
+     ELSE
+       RAISE NOTICE 'Coluna baby_cpf_hash já existe.';
+     END IF;
+   END $$;
+   EOF
+
+4. Verifique se funcionou:
+   docker exec -i olivebaby-db psql -U olivebaby -d olivebaby -c "SELECT column_name FROM information_schema.columns WHERE table_name = 'babies' AND column_name = 'baby_cpf_hash';"
+
+========================================
+MÉTODO 2: Via PuTTY (plink)
+========================================
+
+Se você tiver PuTTY instalado:
+
+1. Copie o arquivo SQL para o VPS:
+   pscp.exe -pw "@VWFusca1978@" add_baby_cpf_hash_column.sql root@72.62.11.30:/tmp/migration.sql
+
+2. Execute a migração:
+   plink.exe -ssh -pw "@VWFusca1978@" root@72.62.11.30 "docker exec -i olivebaby-db psql -U olivebaby -d olivebaby < /tmp/migration.sql"
+
+3. Verifique:
+   plink.exe -ssh -pw "@VWFusca1978@" root@72.62.11.30 "docker exec -i olivebaby-db psql -U olivebaby -d olivebaby -c \"SELECT column_name FROM information_schema.columns WHERE table_name = 'babies' AND column_name = 'baby_cpf_hash';\""
+
+========================================
+VERIFICAÇÃO FINAL
+========================================
+
+Após executar a migração, teste a API:
+
+curl "https://oliecare.cloud/api/v1/routines/feeding/open?babyId=7" \
+  -H "authorization: Bearer SEU_TOKEN_AQUI"
+
+Deve retornar sucesso (não mais erro 500).
+
+========================================

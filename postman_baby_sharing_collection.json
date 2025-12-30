@@ -1,0 +1,375 @@
+{
+  "info": {
+    "name": "Baby Sharing API",
+    "description": "Coleção de endpoints para testar o sistema de compartilhamento de bebês",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:4000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "babyId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "inviteId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "memberId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"mae@example.com\",\n  \"password\": \"Senha123!@#\",\n  \"fullName\": \"Mãe Teste\",\n  \"cpf\": \"12345678901\",\n  \"phone\": \"11999999999\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('token', jsonData.data.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"mae@example.com\",\n  \"password\": \"Senha123!@#\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Babies",
+      "item": [
+        {
+          "name": "Create Baby with CPF",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('babyId', jsonData.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bebê Teste Compartilhamento\",\n  \"birthDate\": \"2024-01-15T00:00:00Z\",\n  \"city\": \"São Paulo\",\n  \"state\": \"SP\",\n  \"country\": \"BR\",\n  \"birthWeightGrams\": 3200,\n  \"birthLengthCm\": 50,\n  \"relationship\": \"MOTHER\",\n  \"babyCpf\": \"12345678901\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/babies",
+              "host": ["{{baseUrl}}"],
+              "path": ["babies"]
+            }
+          }
+        },
+        {
+          "name": "List Babies",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/babies",
+              "host": ["{{baseUrl}}"],
+              "path": ["babies"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Baby Members",
+      "item": [
+        {
+          "name": "List Members",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.length > 0) {",
+                  "        pm.collectionVariables.set('memberId', jsonData.data[0].id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/babies/{{babyId}}/members",
+              "host": ["{{baseUrl}}"],
+              "path": ["babies", "{{babyId}}", "members"]
+            }
+          }
+        },
+        {
+          "name": "Update Member",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permissions\": {\n    \"canViewGrowth\": true,\n    \"canEditRoutines\": true,\n    \"canExport\": false\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/babies/{{babyId}}/members/{{memberId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["babies", "{{babyId}}", "members", "{{memberId}}"]
+            }
+          }
+        },
+        {
+          "name": "Revoke Member",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/babies/{{babyId}}/members/{{memberId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["babies", "{{babyId}}", "members", "{{memberId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Baby Invites",
+      "item": [
+        {
+          "name": "Create Invite",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('inviteId', jsonData.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"emailInvited\": \"pai@example.com\",\n  \"memberType\": \"PARENT\",\n  \"role\": \"OWNER_PARENT_2\",\n  \"invitedName\": \"Pai Teste\",\n  \"message\": \"Convite para acompanhar nosso bebê!\",\n  \"expiresInHours\": 72\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/babies/{{babyId}}/invites",
+              "host": ["{{baseUrl}}"],
+              "path": ["babies", "{{babyId}}", "invites"]
+            }
+          }
+        },
+        {
+          "name": "List Invites",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/babies/{{babyId}}/invites",
+              "host": ["{{baseUrl}}"],
+              "path": ["babies", "{{babyId}}", "invites"]
+            }
+          }
+        },
+        {
+          "name": "Resend Invite",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/babies/{{babyId}}/invites/{{inviteId}}/resend",
+              "host": ["{{baseUrl}}"],
+              "path": ["babies", "{{babyId}}", "invites", "{{inviteId}}", "resend"]
+            }
+          }
+        },
+        {
+          "name": "Revoke Invite",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/babies/{{babyId}}/invites/{{inviteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["babies", "{{babyId}}", "invites", "{{inviteId}}"]
+            }
+          }
+        },
+        {
+          "name": "Verify Token (Public)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"token_do_email_aqui\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/invites/verify-token",
+              "host": ["{{baseUrl}}"],
+              "path": ["invites", "verify-token"]
+            }
+          }
+        },
+        {
+          "name": "Accept Invite",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"token_do_email_aqui\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/invites/accept",
+              "host": ["{{baseUrl}}"],
+              "path": ["invites", "accept"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

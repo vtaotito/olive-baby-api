@@ -15,7 +15,8 @@
     "test:watch": "jest --watch",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
-    "ai:ingest": "ts-node src/scripts/ai-ingest.ts"
+    "ai:ingest": "ts-node src/scripts/ai-ingest.ts",
+    "migrate:password-reset": "ts-node src/scripts/apply-password-reset-migration.ts"
   },
   "keywords": [
     "baby",
