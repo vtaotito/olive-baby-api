@@ -22,28 +22,27 @@ const app = express();
 // Helmet - Headers de segurança
 app.use(helmet());
 
-// CORS
+// CORS - Configuração mais permissiva
 app.use(cors({
   origin: isDevelopment 
-    ? ['http://localhost:3000', 'http://localhost:5173'] 
-    : env.FRONTEND_URL,
+    ? true // Permite todas as origens em desenvolvimento
+    : [
+        env.FRONTEND_URL,
+        'https://oliecare.cloud',
+        'https://www.oliecare.cloud',
+        'http://localhost:3000',
+        'http://localhost:5173',
+      ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['X-Total-Count', 'X-Page', 'X-Per-Page'],
+  maxAge: 86400, // 24 horas
 }));
 
-// Rate Limiting
-const limiter = rateLimit({
-  windowMs: env.RATE_LIMIT_WINDOW_MS,
-  max: env.RATE_LIMIT_MAX,
-  message: {
-    success: false,
-    message: 'Muitas requisições. Tente novamente mais tarde.',
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use(limiter);
+// Rate Limiting - Removido globalmente, aplicado apenas em endpoints específicos
+// O rate limiting global estava causando bloqueios desnecessários
+// Endpoints críticos (forgot-password, etc) têm rate limiting próprio
 
 // ==========================================
 // Middlewares de Parsing

@@ -33,9 +33,9 @@ const envSchema = z.object({
   // Frontend
   FRONTEND_URL: z.string().default('http://localhost:3000'),
 
-  // Rate Limiting
+  // Rate Limiting (não usado globalmente, apenas em endpoints específicos)
   RATE_LIMIT_WINDOW_MS: z.string().default('900000').transform(Number),
-  RATE_LIMIT_MAX: z.string().default('100').transform(Number),
+  RATE_LIMIT_MAX: z.string().default('1000').transform(Number), // Aumentado para evitar bloqueios
 
   // Logging
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
@@ -51,6 +51,9 @@ const envSchema = z.object({
   AI_MAX_TOKENS: z.string().default('2048').transform(Number),
   AI_TEMPERATURE: z.string().default('0.7').transform(Number),
   AI_RAG_TOP_K: z.string().default('6').transform(Number),
+
+  // CPF Hash Salt
+  CPF_SALT: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
