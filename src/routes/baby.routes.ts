@@ -37,6 +37,14 @@ router.put(
   BabyController.update
 );
 
+// PATCH /api/v1/babies/:id - Atualiza bebê (alias para PUT)
+router.patch(
+  '/:id', 
+  requirePermission('canManageBabies'),
+  validateBody(updateBabySchema), 
+  BabyController.update
+);
+
 // DELETE /api/v1/babies/:id - Remove bebê
 router.delete(
   '/:id', 
