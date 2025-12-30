@@ -58,7 +58,18 @@ export class BabyController {
       }
 
       const caregiverId = await BabyController.getCaregiverId(req.user.userId);
-      const data = req.body as z.infer<typeof createBabySchema>;
+      // req.body já foi validado e transformado pelo middleware validateBody
+      const data = req.body as {
+        name: string;
+        birthDate: Date;
+        city?: string;
+        state?: string;
+        country?: string;
+        birthWeightGrams?: number;
+        birthLengthCm?: number;
+        relationship: string;
+        babyCpf?: string;
+      };
       const baby = await BabyService.create(caregiverId, data, req.user.userId);
 
       res.status(201).json({
