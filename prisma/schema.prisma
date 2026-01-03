@@ -128,6 +128,27 @@ enum UserStatus {
   PENDING_VERIFICATION
 }
 
+enum NotificationStatus {
+  UNREAD
+  READ
+  ARCHIVED
+}
+
+enum NotificationType {
+  INSIGHT
+  ALERT
+  REMINDER
+  SYSTEM
+  ACHIEVEMENT
+}
+
+enum NotificationSeverity {
+  info
+  warning
+  alert
+  success
+}
+
 enum AuditAction {
   // Plan & Billing
   PAYWALL_HIT
@@ -188,6 +209,7 @@ model User {
   babyMembersRevoked   BabyMember[]       @relation("BabyMemberRevokedBy")
   settings             UserSettings?
   auditEvents          AuditEvent[]
+  notifications        Notification[]
 
   @@index([planId])
   @@index([status])
@@ -778,4 +800,35 @@ model KnowledgeBaseDocument {
   @@index([tags])
   @@index([sourceType])
   @@map("knowledge_base_documents")
+}
+
+// ==========================================
+// NOTIFICATION MODEL
+// ==========================================
+
+model Notification {
+  id            Int                   @id @default(autoincrement())
+  userId        Int                   @map("user_id")
+  babyId        Int?                  @map("baby_id")
+  type          NotificationType      @default(INSIGHT)
+  severity      NotificationSeverity  @default(info)
+  title         String                @db.VarChar(255)
+  message       String
+  ctaLabel      String?               @map("cta_label") @db.VarChar(100)
+  ctaUrl        String?               @map("cta_url") @db.VarChar(500)
+  status        NotificationStatus    @default(UNREAD)
+  sourceKey     String?               @map("source_key") @db.VarChar(255) // For deduplication (e.g., "insight:feeding:2026-01-03:1")
+  meta          Json?                 @default("{}") @db.JsonB
+  createdAt     DateTime              @default(now()) @map("created_at")
+  readAt        DateTime?             @map("read_at")
+  archivedAt    DateTime?             @map("archived_at")
+  
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sourceKey])
+  @@index([userId])
+  @@index([userId, status])
+  @@index([userId, type])
+  @@index([createdAt])
+  @@map("notifications")
 }
