@@ -635,4 +635,100 @@ export class RoutineController {
       next(error);
     }
   }
+
+  // ==========================================
+  // Rotas de Compatibilidade (Active/:babyId)
+  // ==========================================
+
+  static async getActiveFeeding(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      if (!req.user) {
+        throw AppError.unauthorized();
+      }
+
+      const caregiverId = await RoutineController.getCaregiverId(req.user.userId);
+      const babyId = parseInt(req.params.babyId, 10);
+      const routine = await RoutineService.getOpenRoutine(caregiverId, babyId, 'FEEDING');
+
+      res.status(200).json({
+        success: true,
+        data: routine,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getActiveSleep(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      if (!req.user) {
+        throw AppError.unauthorized();
+      }
+
+      const caregiverId = await RoutineController.getCaregiverId(req.user.userId);
+      const babyId = parseInt(req.params.babyId, 10);
+      const routine = await RoutineService.getOpenRoutine(caregiverId, babyId, 'SLEEP');
+
+      res.status(200).json({
+        success: true,
+        data: routine,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getActiveBath(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      if (!req.user) {
+        throw AppError.unauthorized();
+      }
+
+      const caregiverId = await RoutineController.getCaregiverId(req.user.userId);
+      const babyId = parseInt(req.params.babyId, 10);
+      const routine = await RoutineService.getOpenRoutine(caregiverId, babyId, 'BATH');
+
+      res.status(200).json({
+        success: true,
+        data: routine,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getActiveExtraction(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      if (!req.user) {
+        throw AppError.unauthorized();
+      }
+
+      const caregiverId = await RoutineController.getCaregiverId(req.user.userId);
+      const babyId = parseInt(req.params.babyId, 10);
+      const routine = await RoutineService.getOpenRoutine(caregiverId, babyId, 'MILK_EXTRACTION');
+
+      res.status(200).json({
+        success: true,
+        data: routine,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }

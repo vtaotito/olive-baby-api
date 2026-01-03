@@ -185,4 +185,20 @@ router.post(
   RoutineController.registerExtraction
 );
 
+// ==========================================
+// Rotas de Compatibilidade (Active/:babyId)
+// ==========================================
+
+// GET /api/v1/routines/feeding/active/:babyId - Verifica alimentação ativa (compatibilidade)
+router.get('/feeding/active/:babyId', RoutineController.getActiveFeeding);
+
+// GET /api/v1/routines/sleep/active/:babyId - Verifica sono ativo (compatibilidade)
+router.get('/sleep/active/:babyId', RoutineController.getActiveSleep);
+
+// GET /api/v1/routines/bath/active/:babyId - Verifica banho ativo (compatibilidade)
+router.get('/bath/active/:babyId', RoutineController.getActiveBath);
+
+// GET /api/v1/routines/extraction/active/:babyId - Verifica extração ativa (compatibilidade)
+router.get('/extraction/active/:babyId', RoutineController.getActiveExtraction);
+
 export default router;
