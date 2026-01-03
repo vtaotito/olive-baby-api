@@ -17,7 +17,7 @@ export const createBabySchema = z.object({
   birthLengthCm: z.number().positive().optional(),
   relationship: z.enum([
     'MOTHER', 'FATHER', 'GRANDMOTHER', 'GRANDFATHER',
-    'AUNT', 'UNCLE', 'CAREGIVER', 'OTHER'
+    'AUNT', 'UNCLE', 'NANNY', 'CAREGIVER', 'OTHER'
   ]),
   babyCpf: z.string().optional(), // CPF do bebê (será hashado no backend)
 });
