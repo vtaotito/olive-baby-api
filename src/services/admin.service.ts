@@ -390,7 +390,9 @@ export class AdminService {
             city: user.caregiver.city,
             state: user.caregiver.state,
             // CPF masked
-            cpf: `***.***.${user.caregiver.cpf.slice(-5, -2)}-**`,
+            cpf: user.caregiver.cpf 
+              ? `***.***.${user.caregiver.cpf.slice(-5, -2)}-**`
+              : null,
           }
         : null,
       professional: user.professional,
