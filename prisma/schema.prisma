@@ -160,16 +160,17 @@ enum AuditAction {
 // ==========================================
 
 model User {
-  id                   Int                @id @default(autoincrement())
-  email                String             @unique
-  passwordHash         String             @map("password_hash")
-  role                 UserRole           @default(PARENT)
-  status               UserStatus         @default(ACTIVE)
-  isActive             Boolean            @default(true) @map("is_active")
-  planId               Int?               @map("plan_id")
-  lastActivityAt       DateTime?          @map("last_activity_at")
-  createdAt            DateTime           @default(now()) @map("created_at")
-  updatedAt            DateTime           @updatedAt @map("updated_at")
+  id                    Int                @id @default(autoincrement())
+  email                 String             @unique
+  passwordHash          String             @map("password_hash")
+  role                  UserRole           @default(PARENT)
+  status                UserStatus         @default(ACTIVE)
+  isActive              Boolean            @default(true) @map("is_active")
+  planId                Int?               @map("plan_id")
+  lastActivityAt        DateTime?          @map("last_activity_at")
+  onboardingCompletedAt DateTime?          @map("onboarding_completed_at")
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
   
   // Stripe Billing Fields
   stripeCustomerId     String?            @unique @map("stripe_customer_id")

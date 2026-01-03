@@ -34,6 +34,7 @@ interface AuthResponse {
     id: number;
     email: string;
     role: UserRole;
+    onboardingCompletedAt: Date | null;
     caregiver: {
       id: number;
       fullName: string;
@@ -119,6 +120,7 @@ export class AuthService {
         id: user.id,
         email: user.email,
         role: user.role,
+        onboardingCompletedAt: user.onboardingCompletedAt,
         caregiver: user.caregiver ? {
           id: user.caregiver.id,
           fullName: user.caregiver.fullName,
@@ -166,6 +168,7 @@ export class AuthService {
         id: user.id,
         email: user.email,
         role: user.role,
+        onboardingCompletedAt: user.onboardingCompletedAt,
         caregiver: user.caregiver ? {
           id: user.caregiver.id,
           fullName: user.caregiver.fullName,

@@ -17,6 +17,7 @@ import settingsRoutes from './settings.routes';
 import adminRoutes from './admin.routes';
 import billingRoutes from './billing.routes';
 import adminAiRoutes from './admin-ai.routes';
+import onboardingRoutes from './onboarding.routes';
 
 const router = Router();
 
@@ -44,6 +45,7 @@ router.use('/settings', settingsRoutes);
 router.use('/admin', adminRoutes);
 router.use('/billing', billingRoutes);
 router.use('/admin/ai', adminAiRoutes);
+router.use('/onboarding', onboardingRoutes);
 
 // Baby-scoped routes (nested under /babies/:babyId/)
 // IMPORTANTE: Registrar rotas específicas ANTES das rotas genéricas de /babies
