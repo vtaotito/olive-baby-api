@@ -364,6 +364,7 @@ export class AdminService {
 
     // Query babyMembers separately with proper filtering
     // Use raw query to avoid Prisma validation errors with orphaned records
+    // Table names are mapped: BabyMember -> baby_members, Baby -> babies
     const babyMembers = await prisma.$queryRaw<Array<{
       bm_id: number;
       bm_role: string;
@@ -379,8 +380,8 @@ export class AdminService {
         b.id as baby_id,
         b.name as baby_name,
         b.birth_date as baby_birth_date
-      FROM "BabyMember" bm
-      INNER JOIN "Baby" b ON bm.baby_id = b.id
+      FROM baby_members bm
+      INNER JOIN babies b ON bm.baby_id = b.id
       WHERE bm.user_id = ${userId}
     `;
 
