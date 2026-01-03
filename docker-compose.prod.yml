@@ -37,6 +37,10 @@ services:
       # Rate Limiting
       RATE_LIMIT_WINDOW_MS: 900000
       RATE_LIMIT_MAX: 100
+      # Stripe Billing
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
     ports:
       - "4000:4000"
     networks:
