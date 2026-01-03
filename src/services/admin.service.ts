@@ -347,6 +347,7 @@ export class AdminService {
    * Get user details for admin
    */
   static async getUserDetails(userId: number) {
+    // Query user without babyMembers to avoid Prisma error with orphaned records
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -354,23 +355,34 @@ export class AdminService {
         professional: true,
         plan: true,
         subscription: true,
-        babyMembers: {
-          include: {
-            baby: {
-              select: {
-                id: true,
-                name: true,
-                birthDate: true,
-              },
-            },
-          },
-        },
       },
     });
 
     if (!user) {
       throw AppError.notFound('Usuário não encontrado');
     }
+
+    // Query babyMembers separately with proper filtering
+    // Use raw query to avoid Prisma validation errors with orphaned records
+    const babyMembers = await prisma.$queryRaw<Array<{
+      bm_id: number;
+      bm_role: string;
+      bm_status: string;
+      baby_id: number;
+      baby_name: string;
+      baby_birth_date: Date;
+    }>>`
+      SELECT 
+        bm.id as bm_id,
+        bm.role as bm_role,
+        bm.status as bm_status,
+        b.id as baby_id,
+        b.name as baby_name,
+        b.birth_date as baby_birth_date
+      FROM "BabyMember" bm
+      INNER JOIN "Baby" b ON bm.baby_id = b.id
+      WHERE bm.user_id = ${userId}
+    `;
 
     return {
       id: user.id,
@@ -396,12 +408,12 @@ export class AdminService {
           }
         : null,
       professional: user.professional,
-      babies: user.babyMembers.map(bm => ({
-        id: bm.baby.id,
-        name: bm.baby.name,
-        birthDate: bm.baby.birthDate,
-        role: bm.role,
-        status: bm.status,
+      babies: babyMembers.map(bm => ({
+        id: bm.baby_id,
+        name: bm.baby_name,
+        birthDate: bm.baby_birth_date,
+        role: bm.bm_role,
+        status: bm.bm_status,
       })),
     };
   }
