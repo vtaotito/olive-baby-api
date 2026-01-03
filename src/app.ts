@@ -11,6 +11,7 @@ import { errorMiddleware, notFoundMiddleware } from './middlewares/error.middlew
 import { apiEventsMiddleware } from './middlewares/apiEvents.middleware';
 import { logger } from './config/logger';
 import { monitoringService } from './services/monitoring.service';
+import { ensureInitialAdmin } from './utils/ensureAdmin';
 import routes from './routes';
 
 // Criar aplicação Express
@@ -134,6 +135,9 @@ async function startServer(): Promise<void> {
   try {
     // Conectar ao banco de dados
     await connectDatabase();
+
+    // Garantir que o admin inicial existe
+    await ensureInitialAdmin();
 
     // Iniciar monitoramento periódico
     const { startHealthMonitoring } = require('./utils/monitoring');
