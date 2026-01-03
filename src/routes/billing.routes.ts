@@ -13,8 +13,11 @@ import {
 const router = Router();
 
 // ==========================================
-// Webhook (no auth, raw body required)
+// Public Routes (no auth required)
 // ==========================================
+
+// GET /billing/status - Check if Stripe is configured (public for diagnostics)
+router.get('/status', BillingController.getStripeStatus);
 
 // POST /billing/webhook - Handle Stripe webhooks (no auth required)
 // Note: This route needs raw body, handled in app.ts
@@ -25,14 +28,11 @@ router.post(
 );
 
 // ==========================================
-// Public Routes (authenticated users)
+// Authenticated User Routes
 // ==========================================
 
 // Apply auth middleware to all routes below
 router.use(authMiddleware);
-
-// GET /billing/status - Check if Stripe is configured
-router.get('/status', BillingController.getStripeStatus);
 
 // GET /billing/plans - Get available plans
 router.get('/plans', BillingController.getAvailablePlans);
