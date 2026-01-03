@@ -1,6 +1,6 @@
 {
   "name": "olive-baby-api",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Olive Baby Tracker - API REST Node.js/TypeScript",
   "main": "dist/app.js",
   "scripts": {
@@ -43,6 +43,7 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "nodemailer": "^6.9.15",
+    "stripe": "^20.1.0",
     "uuid": "^10.0.0",
     "winston": "^3.15.0",
     "winston-daily-rotate-file": "^5.0.0",

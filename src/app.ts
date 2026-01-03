@@ -49,6 +49,11 @@ app.use(cors({
 // Middlewares de Parsing
 // ==========================================
 
+// Stripe webhook needs raw body for signature verification
+// Must be configured BEFORE json middleware
+app.use(`${env.API_PREFIX}/billing/webhook`, express.raw({ type: 'application/json' }));
+
+// Standard JSON parsing for all other routes
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 

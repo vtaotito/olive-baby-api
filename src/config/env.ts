@@ -54,6 +54,11 @@ const envSchema = z.object({
 
   // CPF Hash Salt
   CPF_SALT: z.string().optional(),
+
+  // Stripe
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_PUBLISHABLE_KEY: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

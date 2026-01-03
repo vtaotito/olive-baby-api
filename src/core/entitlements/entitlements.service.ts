@@ -66,7 +66,7 @@ export class EntitlementsService {
     const subscriptionStatus = user.subscription?.status || null;
     const isSubscriptionActive = !subscriptionStatus || 
       subscriptionStatus === 'ACTIVE' || 
-      subscriptionStatus === 'TRIAL';
+      subscriptionStatus === 'TRIALING';
 
     return {
       userId: user.id,
