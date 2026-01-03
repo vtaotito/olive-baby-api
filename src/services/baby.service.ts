@@ -178,6 +178,89 @@ export class BabyService {
     return babies;
   }
 
+  /**
+   * Lista bebês de um usuário através de múltiplos caminhos (caregiver e babyMember)
+   * Garante que sempre encontramos todos os bebês, mesmo que um caminho falhe
+   */
+  static async listByUser(userId: number) {
+    // Buscar caregiver do usuário
+    const caregiver = await prisma.caregiver.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    // Buscar bebês de ambas as fontes em paralelo
+    const [babiesFromCaregiver, babiesFromMember] = await Promise.all([
+      // Via CaregiverBaby (relação tradicional)
+      caregiver
+        ? prisma.baby.findMany({
+            where: {
+              caregivers: {
+                some: {
+                  caregiverId: caregiver.id,
+                },
+              },
+            },
+            include: {
+              caregivers: {
+                include: {
+                  caregiver: {
+                    select: {
+                      id: true,
+                      fullName: true,
+                    },
+                  },
+                },
+              },
+            },
+            orderBy: {
+              createdAt: 'asc',
+            },
+          })
+        : Promise.resolve([]),
+      // Via BabyMember (baby sharing)
+      prisma.baby.findMany({
+        where: {
+          members: {
+            some: {
+              userId,
+              status: 'ACTIVE',
+            },
+          },
+        },
+        include: {
+          caregivers: {
+            include: {
+              caregiver: {
+                select: {
+                  id: true,
+                  fullName: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'asc',
+        },
+      }),
+    ]);
+
+    // Combinar e remover duplicatas (por id)
+    const allBabies = [...babiesFromCaregiver, ...babiesFromMember];
+    const uniqueBabies = allBabies.reduce((acc, baby) => {
+      if (!acc.find((b) => b.id === baby.id)) {
+        acc.push(baby);
+      }
+      return acc;
+    }, [] as typeof allBabies);
+
+    // Ordenar por data de criação
+    uniqueBabies.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    return uniqueBabies;
+  }
+
   static async update(babyId: number, caregiverId: number, input: UpdateBabyInput) {
     // Verificar acesso
     await this.getById(babyId, caregiverId);

@@ -69,6 +69,33 @@ export class CaregiverService {
     return caregiver;
   }
 
+  /**
+   * Retorna o caregiver se existir, ou null se não existir
+   * Versão "safe" que não lança exceção
+   */
+  static async findByUserId(userId: number) {
+    const caregiver = await prisma.caregiver.findUnique({
+      where: { userId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            role: true,
+            isActive: true,
+          },
+        },
+        babies: {
+          include: {
+            baby: true,
+          },
+        },
+      },
+    });
+
+    return caregiver;
+  }
+
   static async update(userId: number, input: UpdateCaregiverInput) {
     const caregiver = await prisma.caregiver.findUnique({
       where: { userId },

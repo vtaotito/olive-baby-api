@@ -92,8 +92,8 @@ export class BabyController {
         throw AppError.unauthorized();
       }
 
-      const caregiverId = await BabyController.getCaregiverId(req.user.userId);
-      const babies = await BabyService.listByCaregiver(caregiverId);
+      // Buscar bebês através de múltiplos caminhos para garantir resiliência
+      const babies = await BabyService.listByUser(req.user.userId);
 
       res.status(200).json({
         success: true,
