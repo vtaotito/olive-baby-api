@@ -46,6 +46,12 @@ export const deleteAccountSchema = z.object({
   password: z.string().min(1, 'Senha obrigatória para confirmar exclusão'),
 });
 
+// Schema para setup inicial do admin
+export const setupAdminSchema = z.object({
+  email: z.string().email('Email inválido'),
+  setupKey: z.string().min(1, 'Chave de setup obrigatória'),
+});
+
 export class AuthController {
   static async register(
     req: Request,
@@ -226,6 +232,42 @@ export class AuthController {
       res.status(200).json({
         success: true,
         message: 'Conta excluída com sucesso',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Setup inicial do admin - só funciona se não existir admin ou com chave de setup válida
+   */
+  static async setupInitialAdmin(
+    req: Request,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { email, setupKey } = req.body;
+
+      // Verificar chave de setup (use uma chave segura em produção via env)
+      const validSetupKey = process.env.ADMIN_SETUP_KEY || 'OlieCare-Setup-2026-SecureKey';
+      if (setupKey !== validSetupKey) {
+        throw AppError.forbidden('Chave de setup inválida');
+      }
+
+      const result = await AuthService.promoteToAdmin(email);
+
+      res.status(200).json({
+        success: true,
+        message: result.created 
+          ? 'Usuário admin criado com sucesso' 
+          : 'Usuário promovido a admin com sucesso',
+        data: {
+          userId: result.userId,
+          email: result.email,
+          role: result.role,
+          wasCreated: result.created,
+        },
       });
     } catch (error) {
       next(error);

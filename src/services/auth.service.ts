@@ -467,4 +467,108 @@ export class AuthService {
       emailPrefix: user.email.substring(0, 3) + '***',
     });
   }
+
+  /**
+   * Promove um usuário existente para ADMIN ou cria um novo usuário ADMIN
+   */
+  static async promoteToAdmin(email: string): Promise<{
+    userId: number;
+    email: string;
+    role: string;
+    created: boolean;
+  }> {
+    // Verificar se o usuário existe
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true, email: true, role: true },
+    });
+
+    if (existingUser) {
+      // Usuário já existe - promover para ADMIN
+      if (existingUser.role === 'ADMIN') {
+        return {
+          userId: existingUser.id,
+          email: existingUser.email,
+          role: existingUser.role,
+          created: false,
+        };
+      }
+
+      const updated = await prisma.user.update({
+        where: { id: existingUser.id },
+        data: { role: UserRole.ADMIN },
+        select: { id: true, email: true, role: true },
+      });
+
+      // Registrar auditoria
+      await prisma.auditEvent.create({
+        data: {
+          userId: updated.id,
+          action: 'ADMIN_USER_ROLE_CHANGED',
+          targetType: 'user',
+          targetId: updated.id,
+          metadata: {
+            oldRole: existingUser.role,
+            newRole: updated.role,
+            method: 'setup_endpoint',
+          },
+        },
+      });
+
+      logger.info('User promoted to ADMIN', {
+        userId: updated.id,
+        email: updated.email,
+      });
+
+      return {
+        userId: updated.id,
+        email: updated.email,
+        role: updated.role,
+        created: false,
+      };
+    }
+
+    // Usuário não existe - criar novo admin
+    // Gerar senha temporária segura
+    const tempPassword = 'Admin@OlieCare2026!';
+    const passwordHash = await bcrypt.hash(tempPassword, SALT_ROUNDS);
+
+    const newUser = await prisma.user.create({
+      data: {
+        email,
+        passwordHash,
+        role: UserRole.ADMIN,
+        status: 'ACTIVE',
+        isActive: true,
+      },
+      select: { id: true, email: true, role: true },
+    });
+
+    // Registrar auditoria
+    await prisma.auditEvent.create({
+      data: {
+        userId: newUser.id,
+        action: 'ADMIN_USER_ROLE_CHANGED',
+        targetType: 'user',
+        targetId: newUser.id,
+        metadata: {
+          newRole: newUser.role,
+          method: 'setup_endpoint',
+          created: true,
+        },
+      },
+    });
+
+    logger.info('New ADMIN user created', {
+      userId: newUser.id,
+      email: newUser.email,
+    });
+
+    return {
+      userId: newUser.id,
+      email: newUser.email,
+      role: newUser.role,
+      created: true,
+    };
+  }
 }
