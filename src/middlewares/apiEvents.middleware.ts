@@ -66,7 +66,10 @@ export function apiEventsMiddleware(
     if (typeof encoding === 'function') {
       return originalEnd(chunk, encoding);
     }
-    return originalEnd(chunk, encoding, cb);
+    if (encoding) {
+      return originalEnd(chunk, encoding, cb);
+    }
+    return originalEnd(chunk);
   } as typeof res.end;
 
   next();
