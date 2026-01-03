@@ -40,6 +40,10 @@ export const changeStatusSchema = z.object({
   reason: z.string().max(500).optional(),
 });
 
+export const changeRoleSchema = z.object({
+  role: z.enum(['PARENT', 'CAREGIVER', 'PEDIATRICIAN', 'SPECIALIST', 'ADMIN']),
+});
+
 export const usageQuerySchema = z.object({
   range: z.enum(['7d', '30d', '90d']).optional().default('30d'),
 });
@@ -218,6 +222,36 @@ export class AdminController {
       res.json({
         success: true,
         message: status === 'BLOCKED' ? 'Usuário bloqueado' : 'Usuário desbloqueado',
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * PATCH /admin/users/:id/role
+   * Change user role
+   */
+  static async changeUserRole(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const targetUserId = parseInt(req.params.id, 10);
+      const { role } = changeRoleSchema.parse(req.body);
+      
+      const result = await AdminService.changeUserRole(
+        req.user!.userId,
+        targetUserId,
+        role as any,
+        req
+      );
+
+      res.json({
+        success: true,
+        message: `Role alterada para ${role}`,
         data: result,
       });
     } catch (error) {

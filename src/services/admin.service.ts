@@ -586,6 +586,62 @@ export class AdminService {
   }
 
   /**
+   * Change user role (admin action)
+   */
+  static async changeUserRole(
+    adminUserId: number,
+    targetUserId: number,
+    newRole: UserRole,
+    req?: any
+  ) {
+    const user = await prisma.user.findUnique({
+      where: { id: targetUserId },
+    });
+
+    if (!user) {
+      throw AppError.notFound('Usuário não encontrado');
+    }
+
+    // Prevent demoting the last admin
+    if (user.role === 'ADMIN' && newRole !== 'ADMIN') {
+      const adminCount = await prisma.user.count({
+        where: { role: 'ADMIN' },
+      });
+      if (adminCount <= 1) {
+        throw AppError.forbidden('Não é possível remover o último administrador');
+      }
+    }
+
+    // Prevent self-demotion
+    if (adminUserId === targetUserId && newRole !== 'ADMIN') {
+      throw AppError.forbidden('Você não pode remover suas próprias permissões de admin');
+    }
+
+    const oldRole = user.role;
+
+    await prisma.user.update({
+      where: { id: targetUserId },
+      data: { role: newRole },
+    });
+
+    // Log audit event
+    await AuditService.log({
+      userId: adminUserId,
+      action: 'ADMIN_USER_ROLE_CHANGED' as any,
+      targetType: 'user',
+      targetId: targetUserId,
+      metadata: {
+        oldRole,
+        newRole,
+        targetEmail: user.email,
+      },
+      req,
+    });
+
+    return { success: true, oldRole, newRole };
+  }
+
+  /**
    * Impersonate user (for support)
    * Returns a limited token that expires quickly
    */

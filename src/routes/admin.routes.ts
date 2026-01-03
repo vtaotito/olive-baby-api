@@ -9,6 +9,7 @@ import {
   babiesQuerySchema,
   changePlanSchema,
   changeStatusSchema,
+  changeRoleSchema,
   usageQuerySchema,
   funnelQuerySchema,
   cohortsQuerySchema,
@@ -69,6 +70,13 @@ router.patch(
   '/users/:id/status',
   validateBody(changeStatusSchema),
   AdminController.changeUserStatus
+);
+
+// PATCH /admin/users/:id/role - Change user role
+router.patch(
+  '/users/:id/role',
+  validateBody(changeRoleSchema),
+  AdminController.changeUserRole
 );
 
 // POST /admin/users/:id/impersonate - Impersonate user (support)
