@@ -101,7 +101,7 @@ export class SettingsService {
       // Merge routine notifications if provided
       const routineNotifications = data.routineNotifications
         ? { ...(settings.routineNotifications as object), ...data.routineNotifications }
-        : settings.routineNotifications;
+        : (settings.routineNotifications as object);
 
       settings = await prisma.userSettings.update({
         where: { userId },
@@ -112,7 +112,7 @@ export class SettingsService {
           quietHoursEnabled: data.quietHoursEnabled ?? settings.quietHoursEnabled,
           quietHoursStart: data.quietHoursStart ?? settings.quietHoursStart,
           quietHoursEnd: data.quietHoursEnd ?? settings.quietHoursEnd,
-          routineNotifications,
+          routineNotifications: routineNotifications as any,
         },
       });
     }

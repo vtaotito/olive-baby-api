@@ -1,6 +1,7 @@
 // Olive Baby API - Baby Controller
 import { Response, NextFunction } from 'express';
 import { z } from 'zod';
+import { Relationship } from '@prisma/client';
 import { BabyService } from '../services/baby.service';
 import { CaregiverService } from '../services/caregiver.service';
 import { AuthenticatedRequest, ApiResponse } from '../types';
@@ -67,7 +68,7 @@ export class BabyController {
         country?: string;
         birthWeightGrams?: number;
         birthLengthCm?: number;
-        relationship: string;
+        relationship: Relationship;
         babyCpf?: string;
       };
       const baby = await BabyService.create(caregiverId, data, req.user.userId);

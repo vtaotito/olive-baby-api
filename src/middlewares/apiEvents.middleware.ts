@@ -30,8 +30,8 @@ export function apiEventsMiddleware(
   }
 
   // Override res.end to capture response
-  const originalEnd = res.end;
-  res.end = function (this: Response, ...args: any[]) {
+  const originalEnd = res.end.bind(res);
+  res.end = function (this: Response, chunk?: any, encoding?: BufferEncoding | (() => void), cb?: () => void) {
     const durationMs = Date.now() - startTime;
     const statusCode = res.statusCode;
 
@@ -39,9 +39,9 @@ export function apiEventsMiddleware(
     if (statusCode >= 400 || durationMs >= SLOW_REQUEST_THRESHOLD_MS) {
       // Extract error message from response if available
       let errorMessage: string | undefined;
-      if (statusCode >= 400 && args[0]) {
+      if (statusCode >= 400 && chunk) {
         try {
-          const body = typeof args[0] === 'string' ? JSON.parse(args[0]) : args[0];
+          const body = typeof chunk === 'string' ? JSON.parse(chunk) : chunk;
           errorMessage = body.error || body.message;
         } catch {
           // Ignore parsing errors
@@ -63,8 +63,11 @@ export function apiEventsMiddleware(
       });
     }
 
-    return originalEnd.apply(this, args);
-  };
+    if (typeof encoding === 'function') {
+      return originalEnd(chunk, encoding);
+    }
+    return originalEnd(chunk, encoding, cb);
+  } as typeof res.end;
 
   next();
 }
