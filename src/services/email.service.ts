@@ -1,10 +1,112 @@
 // Olive Baby API - Email Service
+// Supports MailerSend (primary) and SMTP via Nodemailer (fallback)
 import nodemailer from 'nodemailer';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
 
-// Criar transporter reutilizável
-function createTransporter() {
+// ==========================================
+// Types
+// ==========================================
+
+interface EmailOptions {
+  to: string | string[];
+  subject: string;
+  html: string;
+  text?: string;
+  replyTo?: string;
+}
+
+interface MailerSendResponse {
+  success: boolean;
+  messageId?: string;
+  error?: string;
+}
+
+// ==========================================
+// MailerSend API Client
+// ==========================================
+
+class MailerSendClient {
+  private apiKey: string;
+  private fromEmail: string;
+  private fromName: string;
+  private baseUrl = 'https://api.mailersend.com/v1';
+
+  constructor() {
+    this.apiKey = env.MAILERSEND_API_KEY || '';
+    this.fromEmail = env.MAILERSEND_FROM_EMAIL;
+    this.fromName = env.MAILERSEND_FROM_NAME;
+  }
+
+  isConfigured(): boolean {
+    return !!this.apiKey;
+  }
+
+  async send(options: EmailOptions): Promise<MailerSendResponse> {
+    const recipients = Array.isArray(options.to) ? options.to : [options.to];
+
+    const payload = {
+      from: {
+        email: this.fromEmail,
+        name: this.fromName,
+      },
+      to: recipients.map(email => ({ email })),
+      subject: options.subject,
+      html: options.html,
+      text: options.text || this.stripHtml(options.html),
+      ...(options.replyTo && { reply_to: [{ email: options.replyTo }] }),
+    };
+
+    try {
+      const response = await fetch(`${this.baseUrl}/email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok || response.status === 202) {
+        const messageId = response.headers.get('x-message-id') || 'sent';
+        logger.info('Email sent via MailerSend', { 
+          to: recipients.map(e => e.substring(0, 3) + '***').join(', '),
+          subject: options.subject.substring(0, 30),
+          messageId,
+        });
+        return { success: true, messageId };
+      }
+
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = (errorData as any)?.message || `HTTP ${response.status}`;
+      
+      logger.error('MailerSend API error', { 
+        status: response.status, 
+        error: errorMessage,
+        details: errorData,
+      });
+      
+      return { success: false, error: errorMessage };
+    } catch (error: any) {
+      logger.error('MailerSend request failed', { error: error.message });
+      return { success: false, error: error.message };
+    }
+  }
+
+  private stripHtml(html: string): string {
+    return html
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+}
+
+// ==========================================
+// SMTP Fallback (Nodemailer)
+// ==========================================
+
+function createSmtpTransporter() {
   if (!env.SMTP_HOST || !env.SMTP_USER) {
     return null;
   }
@@ -20,6 +122,105 @@ function createTransporter() {
   });
 }
 
+async function sendViaSMTP(options: EmailOptions): Promise<boolean> {
+  const transporter = createSmtpTransporter();
+  if (!transporter) {
+    logger.warn('SMTP not configured');
+    return false;
+  }
+
+  try {
+    await transporter.sendMail({
+      from: `"${env.MAILERSEND_FROM_NAME}" <${env.SMTP_USER}>`,
+      to: Array.isArray(options.to) ? options.to.join(', ') : options.to,
+      subject: options.subject,
+      html: options.html,
+      text: options.text,
+      replyTo: options.replyTo,
+    });
+    
+    logger.info('Email sent via SMTP fallback', { 
+      subject: options.subject.substring(0, 30),
+    });
+    return true;
+  } catch (error: any) {
+    logger.error('SMTP send failed', { error: error.message });
+    return false;
+  }
+}
+
+// ==========================================
+// Main Email Service
+// ==========================================
+
+const mailerSend = new MailerSendClient();
+
+/**
+ * Sends an email using MailerSend (primary) or SMTP (fallback)
+ */
+async function sendEmail(options: EmailOptions): Promise<boolean> {
+  // Try MailerSend first
+  if (mailerSend.isConfigured()) {
+    const result = await mailerSend.send(options);
+    if (result.success) {
+      return true;
+    }
+    logger.warn('MailerSend failed, trying SMTP fallback');
+  }
+
+  // Fallback to SMTP
+  return sendViaSMTP(options);
+}
+
+// ==========================================
+// Email Templates
+// ==========================================
+
+const baseStyles = `
+  body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f4f4f4; }
+  .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+  .header { background: linear-gradient(135deg, #4a7c59 0%, #6b9b7a 100%); color: white; padding: 30px 20px; border-radius: 8px 8px 0 0; text-align: center; }
+  .header h2 { margin: 0; font-size: 24px; font-weight: 600; }
+  .content { background: white; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 8px 8px; }
+  .button { display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, #4a7c59 0%, #6b9b7a 100%); color: white; text-decoration: none; border-radius: 6px; margin: 20px 0; font-weight: 600; }
+  .button:hover { opacity: 0.9; }
+  .footer { text-align: center; margin-top: 20px; color: #888; font-size: 12px; padding: 20px; }
+  .logo { font-size: 28px; margin-bottom: 10px; }
+  .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 15px 0; border-radius: 4px; }
+  .info-box { background: #e8f5e9; border-left: 4px solid #4a7c59; padding: 15px; margin: 15px 0; border-radius: 4px; }
+  .message-box { background: #f5f5f5; padding: 15px; margin: 15px 0; border-radius: 4px; }
+`;
+
+function wrapTemplate(content: string, title: string): string {
+  return `
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${title}</title>
+      <style>${baseStyles}</style>
+    </head>
+    <body>
+      <div class="container">
+        ${content}
+        <div class="footer">
+          <p>🌿 <strong>Olive Baby</strong></p>
+          <p>Acompanhamento do desenvolvimento do seu bebê</p>
+          <p style="margin-top: 10px; font-size: 11px; color: #aaa;">
+            Este é um email automático. Por favor, não responda diretamente.
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+// ==========================================
+// Public Email Functions
+// ==========================================
+
 /**
  * Envia convite para profissional
  */
@@ -31,64 +232,38 @@ export async function sendProfessionalInvite(data: {
   inviteToken: string;
   role: string;
 }) {
-  const transporter = createTransporter();
-  if (!transporter) {
-    logger.warn('SMTP not configured, skipping professional invite email');
-    return;
-  }
-
   const activationUrl = `${env.FRONTEND_URL}/activate-professional?token=${data.inviteToken}`;
 
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: #4CAF50; color: white; padding: 20px; border-radius: 5px 5px 0 0; }
-        .content { background: #f9f9f9; padding: 20px; border: 1px solid #ddd; border-top: none; }
-        .button { display: inline-block; padding: 12px 24px; background: #4CAF50; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-        .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h2>Convite para Acompanhar ${data.babyName}</h2>
-        </div>
-        <div class="content">
-          <p>Olá <strong>${data.professionalName}</strong>,</p>
-          <p><strong>${data.caregiverName}</strong> convidou você para acompanhar o desenvolvimento de <strong>${data.babyName}</strong> na plataforma Olive Baby.</p>
-          <p>Clique no botão abaixo para ativar sua conta e começar a acompanhar:</p>
-          <div style="text-align: center;">
-            <a href="${activationUrl}" class="button">Ativar Conta</a>
-          </div>
-          <p>Ou copie e cole este link no seu navegador:</p>
-          <p style="word-break: break-all; color: #666;">${activationUrl}</p>
-          <p><strong>Importante:</strong> Este link expira em 7 dias.</p>
-        </div>
-        <div class="footer">
-          <p>Olive Baby - Acompanhamento do desenvolvimento do seu bebê</p>
-        </div>
+  const content = `
+    <div class="header">
+      <div class="logo">🌿</div>
+      <h2>Convite para Acompanhar ${data.babyName}</h2>
+    </div>
+    <div class="content">
+      <p>Olá <strong>${data.professionalName}</strong>,</p>
+      <p><strong>${data.caregiverName}</strong> convidou você para acompanhar o desenvolvimento de <strong>${data.babyName}</strong> na plataforma Olive Baby.</p>
+      <div class="info-box">
+        <p><strong>Papel:</strong> ${data.role}</p>
       </div>
-    </body>
-    </html>
+      <p>Clique no botão abaixo para ativar sua conta:</p>
+      <div style="text-align: center;">
+        <a href="${activationUrl}" class="button">Ativar Conta</a>
+      </div>
+      <p style="font-size: 12px; color: #666;">Ou copie este link: ${activationUrl}</p>
+      <div class="warning">
+        <strong>⚠️ Importante:</strong> Este link expira em 7 dias.
+      </div>
+    </div>
   `;
 
-  try {
-    await transporter.sendMail({
-      from: `"Olive Baby" <${env.SMTP_USER}>`,
-      to: data.professionalEmail,
-      subject: `Convite para acompanhar ${data.babyName}`,
-      html,
-    });
+  const success = await sendEmail({
+    to: data.professionalEmail,
+    subject: `Convite para acompanhar ${data.babyName} - Olive Baby`,
+    html: wrapTemplate(content, 'Convite Profissional'),
+  });
 
-    logger.info('Professional invite email sent', { email: data.professionalEmail });
-  } catch (error: any) {
-    logger.error('Failed to send professional invite email', { error: error.message });
-    throw error;
+  if (!success) {
+    throw new Error('Failed to send professional invite email');
   }
 }
 
@@ -104,15 +279,8 @@ export async function sendBabyInvite(data: {
   role: string;
   message?: string;
 }) {
-  const transporter = createTransporter();
-  if (!transporter) {
-    logger.warn('SMTP not configured, skipping baby invite email');
-    return;
-  }
-
   const activationUrl = `${env.FRONTEND_URL}/invite/accept?token=${data.inviteToken}`;
 
-  // Determinar tipo de convite
   let inviteTypeLabel = '';
   let roleLabel = '';
   
@@ -133,65 +301,47 @@ export async function sendBabyInvite(data: {
       break;
   }
 
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: #4CAF50; color: white; padding: 20px; border-radius: 5px 5px 0 0; }
-        .content { background: #f9f9f9; padding: 20px; border: 1px solid #ddd; border-top: none; }
-        .button { display: inline-block; padding: 12px 24px; background: #4CAF50; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-        .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
-        .message-box { background: white; padding: 15px; margin: 15px 0; border-left: 4px solid #4CAF50; border-radius: 4px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h2>Convite para Acompanhar ${data.babyName}</h2>
-        </div>
-        <div class="content">
-          <p>Olá <strong>${data.invitedName}</strong>,</p>
-          <p>Você foi convidado para acompanhar o desenvolvimento de <strong>${data.babyName}</strong> na plataforma Olive Baby como <strong>${inviteTypeLabel}</strong>.</p>
-          <p><strong>Papel:</strong> ${roleLabel}</p>
-          ${data.message ? `
-            <div class="message-box">
-              <p><strong>Mensagem:</strong></p>
-              <p>${data.message}</p>
-            </div>
-          ` : ''}
-          <p>Clique no botão abaixo para aceitar o convite e começar a acompanhar:</p>
-          <div style="text-align: center;">
-            <a href="${activationUrl}" class="button">Aceitar Convite</a>
-          </div>
-          <p>Ou copie e cole este link no seu navegador:</p>
-          <p style="word-break: break-all; color: #666;">${activationUrl}</p>
-          <p><strong>Importante:</strong> Este link expira em 72 horas.</p>
-          <p>Se você não tem uma conta na plataforma, será necessário criar uma antes de aceitar o convite.</p>
-        </div>
-        <div class="footer">
-          <p>Olive Baby - Acompanhamento do desenvolvimento do seu bebê</p>
-        </div>
+  const content = `
+    <div class="header">
+      <div class="logo">🌿</div>
+      <h2>Convite para Acompanhar ${data.babyName}</h2>
+    </div>
+    <div class="content">
+      <p>Olá <strong>${data.invitedName}</strong>,</p>
+      <p>Você foi convidado para acompanhar o desenvolvimento de <strong>${data.babyName}</strong> na plataforma Olive Baby.</p>
+      <div class="info-box">
+        <p><strong>Tipo:</strong> ${inviteTypeLabel}</p>
+        <p><strong>Papel:</strong> ${roleLabel}</p>
       </div>
-    </body>
-    </html>
+      ${data.message ? `
+        <div class="message-box">
+          <p><strong>Mensagem:</strong></p>
+          <p>${data.message}</p>
+        </div>
+      ` : ''}
+      <p>Clique no botão abaixo para aceitar o convite:</p>
+      <div style="text-align: center;">
+        <a href="${activationUrl}" class="button">Aceitar Convite</a>
+      </div>
+      <p style="font-size: 12px; color: #666;">Ou copie este link: ${activationUrl}</p>
+      <div class="warning">
+        <strong>⚠️ Importante:</strong>
+        <ul style="margin: 10px 0; padding-left: 20px;">
+          <li>Este link expira em 72 horas</li>
+          <li>Se você não tem conta, será necessário criar uma</li>
+        </ul>
+      </div>
+    </div>
   `;
 
-  try {
-    await transporter.sendMail({
-      from: `"Olive Baby" <${env.SMTP_USER}>`,
-      to: data.emailInvited,
-      subject: `Convite para acompanhar ${data.babyName}`,
-      html,
-    });
+  const success = await sendEmail({
+    to: data.emailInvited,
+    subject: `Convite para acompanhar ${data.babyName} - Olive Baby`,
+    html: wrapTemplate(content, 'Convite'),
+  });
 
-    logger.info('Baby invite email sent', { email: data.emailInvited, babyName: data.babyName });
-  } catch (error: any) {
-    logger.error('Failed to send baby invite email', { error: error.message });
-    throw error;
+  if (!success) {
+    throw new Error('Failed to send baby invite email');
   }
 }
 
@@ -203,87 +353,93 @@ export async function sendPasswordResetEmail(data: {
   resetToken: string;
   userName?: string;
 }) {
-  const transporter = createTransporter();
-  if (!transporter) {
-    logger.warn('SMTP not configured, skipping password reset email');
-    return;
-  }
-
   const resetUrl = `${env.FRONTEND_URL}/reset-password?token=${data.resetToken}`;
-  const expiresIn = '30 minutos';
 
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: #4CAF50; color: white; padding: 20px; border-radius: 5px 5px 0 0; }
-        .content { background: #f9f9f9; padding: 20px; border: 1px solid #ddd; border-top: none; }
-        .button { display: inline-block; padding: 12px 24px; background: #4CAF50; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-        .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
-        .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 15px 0; border-radius: 4px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h2>Recuperação de Senha</h2>
-        </div>
-        <div class="content">
-          <p>Olá${data.userName ? ` <strong>${data.userName}</strong>` : ''},</p>
-          <p>Recebemos uma solicitação para redefinir a senha da sua conta na plataforma Olive Baby.</p>
-          <p>Clique no botão abaixo para criar uma nova senha:</p>
-          <div style="text-align: center;">
-            <a href="${resetUrl}" class="button">Redefinir Senha</a>
-          </div>
-          <p>Ou copie e cole este link no seu navegador:</p>
-          <p style="word-break: break-all; color: #666; font-size: 12px;">${resetUrl}</p>
-          <div class="warning">
-            <p><strong>⚠️ Importante:</strong></p>
-            <ul style="margin: 10px 0; padding-left: 20px;">
-              <li>Este link expira em <strong>${expiresIn}</strong></li>
-              <li>Se você não solicitou esta recuperação, ignore este email</li>
-              <li>Nunca compartilhe este link com outras pessoas</li>
-            </ul>
-          </div>
-          <p style="margin-top: 20px; font-size: 12px; color: #666;">
-            Por segurança, este link só pode ser usado uma vez. Após redefinir sua senha, todos os seus dispositivos serão desconectados e você precisará fazer login novamente.
-          </p>
-        </div>
-        <div class="footer">
-          <p>Olive Baby - Acompanhamento do desenvolvimento do seu bebê</p>
-          <p>Este é um email automático, por favor não responda.</p>
-        </div>
+  const content = `
+    <div class="header">
+      <div class="logo">🔐</div>
+      <h2>Recuperação de Senha</h2>
+    </div>
+    <div class="content">
+      <p>Olá${data.userName ? ` <strong>${data.userName}</strong>` : ''},</p>
+      <p>Recebemos uma solicitação para redefinir a senha da sua conta na plataforma Olive Baby.</p>
+      <p>Clique no botão abaixo para criar uma nova senha:</p>
+      <div style="text-align: center;">
+        <a href="${resetUrl}" class="button">Redefinir Senha</a>
       </div>
-    </body>
-    </html>
+      <p style="font-size: 12px; color: #666; word-break: break-all;">Ou copie este link: ${resetUrl}</p>
+      <div class="warning">
+        <strong>⚠️ Importante:</strong>
+        <ul style="margin: 10px 0; padding-left: 20px;">
+          <li>Este link expira em <strong>30 minutos</strong></li>
+          <li>Se você não solicitou esta recuperação, ignore este email</li>
+          <li>Nunca compartilhe este link com outras pessoas</li>
+        </ul>
+      </div>
+      <p style="margin-top: 20px; font-size: 12px; color: #666;">
+        Por segurança, este link só pode ser usado uma vez. Após redefinir sua senha, você precisará fazer login novamente em todos os seus dispositivos.
+      </p>
+    </div>
   `;
 
-  try {
-    await transporter.sendMail({
-      from: `"Olive Baby" <${env.SMTP_USER}>`,
-      to: data.email,
-      subject: 'Recuperação de Senha - Olive Baby',
-      html,
-    });
+  const success = await sendEmail({
+    to: data.email,
+    subject: 'Recuperação de Senha - Olive Baby',
+    html: wrapTemplate(content, 'Recuperação de Senha'),
+  });
 
-    logger.info('Password reset email sent', { 
-      email: data.email.substring(0, 3) + '***', // Mascarar email nos logs
-    });
-  } catch (error: any) {
-    logger.error('Failed to send password reset email', { 
-      error: error.message,
-      email: data.email.substring(0, 3) + '***', // Mascarar email nos logs
-    });
-    throw error;
+  if (!success) {
+    throw new Error('Failed to send password reset email');
   }
+
+  logger.info('Password reset email sent', { 
+    email: data.email.substring(0, 3) + '***',
+  });
 }
 
 /**
- * Envia alerta por email
+ * Envia email de boas-vindas
+ */
+export async function sendWelcomeEmail(data: {
+  email: string;
+  userName: string;
+}) {
+  const dashboardUrl = `${env.FRONTEND_URL}/dashboard`;
+
+  const content = `
+    <div class="header">
+      <div class="logo">🌿</div>
+      <h2>Bem-vindo ao Olive Baby!</h2>
+    </div>
+    <div class="content">
+      <p>Olá <strong>${data.userName}</strong>,</p>
+      <p>Sua conta foi criada com sucesso! Estamos muito felizes em ter você conosco.</p>
+      <div class="info-box">
+        <p><strong>O que você pode fazer:</strong></p>
+        <ul style="margin: 10px 0; padding-left: 20px;">
+          <li>📊 Acompanhar o desenvolvimento do seu bebê</li>
+          <li>📝 Registrar rotinas (alimentação, sono, fraldas)</li>
+          <li>📈 Visualizar estatísticas e tendências</li>
+          <li>👨‍👩‍👧 Convidar familiares e profissionais</li>
+          <li>🤖 Usar o assistente de IA para dicas personalizadas</li>
+        </ul>
+      </div>
+      <div style="text-align: center;">
+        <a href="${dashboardUrl}" class="button">Acessar Dashboard</a>
+      </div>
+      <p>Se tiver dúvidas, não hesite em nos contatar!</p>
+    </div>
+  `;
+
+  await sendEmail({
+    to: data.email,
+    subject: 'Bem-vindo ao Olive Baby! 🌿',
+    html: wrapTemplate(content, 'Bem-vindo'),
+  });
+}
+
+/**
+ * Envia alerta por email (para admins/monitoramento)
  */
 export async function sendAlert(data: {
   level: 'info' | 'warning' | 'error' | 'critical';
@@ -292,85 +448,120 @@ export async function sendAlert(data: {
   component: string;
   metadata?: Record<string, any>;
 }) {
-  if (!env.SMTP_HOST || !env.SMTP_USER) {
-    logger.warn('SMTP not configured, skipping alert email');
-    return;
-  }
-
-  const transporter = nodemailer.createTransport({
-    host: env.SMTP_HOST,
-    port: env.SMTP_PORT,
-    secure: env.SMTP_PORT === 465,
-    auth: {
-      user: env.SMTP_USER,
-      pass: env.SMTP_PASS,
-    },
-  });
-
-  const levelEmojis = {
-    info: 'ℹ️',
-    warning: '⚠️',
-    error: '❌',
-    critical: '🚨',
+  const levelConfig = {
+    info: { emoji: 'ℹ️', color: '#2196F3' },
+    warning: { emoji: '⚠️', color: '#FF9800' },
+    error: { emoji: '❌', color: '#F44336' },
+    critical: { emoji: '🚨', color: '#D32F2F' },
   };
 
-  const levelColors = {
-    info: '#2196F3',
-    warning: '#FF9800',
-    error: '#F44336',
-    critical: '#D32F2F',
-  };
+  const config = levelConfig[data.level];
 
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: ${levelColors[data.level]}; color: white; padding: 20px; border-radius: 5px 5px 0 0; }
-        .content { background: #f9f9f9; padding: 20px; border: 1px solid #ddd; border-top: none; }
-        .metadata { background: white; padding: 15px; margin-top: 15px; border-radius: 5px; }
-        .metadata pre { margin: 0; font-size: 12px; }
-        .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h2>${levelEmojis[data.level]} ${data.title}</h2>
+  const content = `
+    <div class="header" style="background: ${config.color};">
+      <h2>${config.emoji} ${data.title}</h2>
+    </div>
+    <div class="content">
+      <p><strong>Componente:</strong> ${data.component}</p>
+      <p><strong>Nível:</strong> ${data.level.toUpperCase()}</p>
+      <p><strong>Mensagem:</strong> ${data.message}</p>
+      ${data.metadata ? `
+        <div class="message-box">
+          <strong>Detalhes:</strong>
+          <pre style="margin: 10px 0; font-size: 12px; overflow-x: auto;">${JSON.stringify(data.metadata, null, 2)}</pre>
         </div>
-        <div class="content">
-          <p><strong>Componente:</strong> ${data.component}</p>
-          <p><strong>Mensagem:</strong> ${data.message}</p>
-          ${data.metadata ? `
-            <div class="metadata">
-              <strong>Detalhes:</strong>
-              <pre>${JSON.stringify(data.metadata, null, 2)}</pre>
-            </div>
-          ` : ''}
-        </div>
-        <div class="footer">
-          <p>Olive Baby API - Sistema de Monitoramento</p>
-          <p>${new Date().toLocaleString('pt-BR')}</p>
-        </div>
-      </div>
-    </body>
-    </html>
+      ` : ''}
+      <p style="font-size: 12px; color: #666;">
+        <strong>Timestamp:</strong> ${new Date().toISOString()}
+      </p>
+    </div>
   `;
 
-  try {
-    await transporter.sendMail({
-      from: `"Olive Baby Monitor" <${env.SMTP_USER}>`,
-      to: env.ALERT_EMAIL || env.SMTP_USER,
-      subject: `[${data.level.toUpperCase()}] ${data.title}`,
-      html,
-    });
+  const alertEmail = env.ALERT_EMAIL || env.SMTP_USER || env.MAILERSEND_FROM_EMAIL;
+  
+  await sendEmail({
+    to: alertEmail,
+    subject: `[${data.level.toUpperCase()}] ${data.title} - Olive Baby`,
+    html: wrapTemplate(content, 'Alerta do Sistema'),
+  });
 
-    logger.info('Alert email sent', { level: data.level, component: data.component });
-  } catch (error: any) {
-    logger.error('Failed to send alert email', { error: error.message });
-    throw error;
-  }
+  logger.info('Alert email sent', { level: data.level, component: data.component });
 }
+
+/**
+ * Envia notificação de pagamento
+ */
+export async function sendPaymentConfirmation(data: {
+  email: string;
+  userName: string;
+  planName: string;
+  amount: number;
+  currency: string;
+  nextBillingDate?: Date;
+}) {
+  const dashboardUrl = `${env.FRONTEND_URL}/dashboard`;
+
+  const content = `
+    <div class="header">
+      <div class="logo">✅</div>
+      <h2>Pagamento Confirmado!</h2>
+    </div>
+    <div class="content">
+      <p>Olá <strong>${data.userName}</strong>,</p>
+      <p>Seu pagamento foi processado com sucesso!</p>
+      <div class="info-box">
+        <p><strong>Detalhes:</strong></p>
+        <ul style="margin: 10px 0; padding-left: 20px; list-style: none;">
+          <li>📦 <strong>Plano:</strong> ${data.planName}</li>
+          <li>💰 <strong>Valor:</strong> ${data.currency} ${(data.amount / 100).toFixed(2)}</li>
+          ${data.nextBillingDate ? `<li>📅 <strong>Próxima cobrança:</strong> ${data.nextBillingDate.toLocaleDateString('pt-BR')}</li>` : ''}
+        </ul>
+      </div>
+      <p>Obrigado por assinar o Olive Baby Premium! Agora você tem acesso a todos os recursos exclusivos.</p>
+      <div style="text-align: center;">
+        <a href="${dashboardUrl}" class="button">Ir para o Dashboard</a>
+      </div>
+    </div>
+  `;
+
+  await sendEmail({
+    to: data.email,
+    subject: 'Pagamento Confirmado - Olive Baby Premium ✅',
+    html: wrapTemplate(content, 'Pagamento Confirmado'),
+  });
+}
+
+/**
+ * Envia notificação de cancelamento de assinatura
+ */
+export async function sendSubscriptionCancelled(data: {
+  email: string;
+  userName: string;
+  planName: string;
+  endDate: Date;
+}) {
+  const content = `
+    <div class="header" style="background: #FF9800;">
+      <div class="logo">📝</div>
+      <h2>Assinatura Cancelada</h2>
+    </div>
+    <div class="content">
+      <p>Olá <strong>${data.userName}</strong>,</p>
+      <p>Confirmamos o cancelamento da sua assinatura do plano <strong>${data.planName}</strong>.</p>
+      <div class="info-box">
+        <p>Você continuará tendo acesso aos recursos premium até <strong>${data.endDate.toLocaleDateString('pt-BR')}</strong>.</p>
+      </div>
+      <p>Após esta data, sua conta será automaticamente convertida para o plano gratuito.</p>
+      <p>Sentiremos sua falta! Se mudar de ideia, você pode reativar sua assinatura a qualquer momento.</p>
+    </div>
+  `;
+
+  await sendEmail({
+    to: data.email,
+    subject: 'Assinatura Cancelada - Olive Baby',
+    html: wrapTemplate(content, 'Cancelamento'),
+  });
+}
+
+// Export for testing
+export { sendEmail, mailerSend };

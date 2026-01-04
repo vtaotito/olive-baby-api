@@ -22,13 +22,18 @@ const envSchema = z.object({
   JWT_ACCESS_EXPIRES_IN: z.string().default('1h'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
 
-  // SMTP
+  // SMTP (legacy fallback)
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.string().optional().transform(val => val ? Number(val) : 587),
   SMTP_SECURE: z.string().optional().transform(val => val === 'true'),
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().optional(),
+
+  // MailerSend (primary email provider)
+  MAILERSEND_API_KEY: z.string().optional(),
+  MAILERSEND_FROM_EMAIL: z.string().email().default('noreply@oliecare.cloud'),
+  MAILERSEND_FROM_NAME: z.string().default('Olive Baby'),
 
   // Frontend
   FRONTEND_URL: z.string().default('http://localhost:3000'),
