@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { AdminService } from '../services/admin.service';
 import { AdminAnalyticsService } from '../services/adminAnalytics.service';
 import { ApiEventsService } from '../services/apiEvents.service';
+import { sendWelcomeEmail, sendAlert } from '../services/email.service';
 import { AuthenticatedRequest, ApiResponse } from '../types';
 import { PlanType, UserStatus } from '@prisma/client';
 
@@ -71,6 +72,11 @@ export const dataQualityQuerySchema = z.object({
 
 export const errorsQuerySchema = z.object({
   range: z.enum(['7d', '30d']).optional().default('7d'),
+});
+
+export const testEmailSchema = z.object({
+  email: z.string().email(),
+  type: z.enum(['welcome', 'alert']).default('welcome'),
 });
 
 // ==========================================
@@ -459,6 +465,50 @@ export class AdminController {
       res.json({
         success: true,
         data: analytics,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /admin/test-email
+   * Send a test email to verify email service is working
+   */
+  static async testEmail(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { email, type } = testEmailSchema.parse(req.body);
+
+      if (type === 'welcome') {
+        await sendWelcomeEmail({
+          email,
+          userName: 'Teste de Email',
+        });
+      } else if (type === 'alert') {
+        await sendAlert({
+          level: 'info',
+          title: 'Teste de Email',
+          message: 'Este é um email de teste do sistema Olive Baby.',
+          component: 'admin-test',
+          metadata: {
+            testedBy: req.user?.email,
+            timestamp: new Date().toISOString(),
+          },
+        });
+      }
+
+      res.json({
+        success: true,
+        message: `Email de teste (${type}) enviado para ${email}`,
+        data: {
+          email,
+          type,
+          sentAt: new Date().toISOString(),
+        },
       });
     } catch (error) {
       next(error);

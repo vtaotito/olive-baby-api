@@ -15,6 +15,7 @@ import {
   cohortsQuerySchema,
   paywallQuerySchema,
   errorsQuerySchema,
+  testEmailSchema,
 } from '../controllers/admin.controller';
 
 const router = Router();
@@ -129,6 +130,17 @@ router.get(
   '/errors',
   validateQuery(errorsQuerySchema),
   AdminController.getErrorsAnalytics
+);
+
+// ==========================================
+// Testing & Diagnostics
+// ==========================================
+
+// POST /admin/test-email - Send test email
+router.post(
+  '/test-email',
+  validateBody(testEmailSchema),
+  AdminController.testEmail
 );
 
 export default router;
