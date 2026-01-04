@@ -3,7 +3,8 @@ import { Router } from 'express';
 import { 
   SettingsController, 
   notificationSettingsSchema, 
-  appearanceSettingsSchema 
+  appearanceSettingsSchema,
+  timezoneSchema 
 } from '../controllers/settings.controller';
 import { validateBody } from '../middlewares/validation.middleware';
 import { authMiddleware } from '../middlewares/auth.middleware';
@@ -21,6 +22,15 @@ router.put('/notifications', validateBody(notificationSettingsSchema), SettingsC
 
 // PUT /api/v1/settings/appearance - Atualizar configurações de aparência
 router.put('/appearance', validateBody(appearanceSettingsSchema), SettingsController.updateAppearance);
+
+// GET /api/v1/settings/timezone - Buscar fuso horário do usuário
+router.get('/timezone', SettingsController.getTimezone);
+
+// PUT /api/v1/settings/timezone - Atualizar fuso horário do usuário
+router.put('/timezone', validateBody(timezoneSchema), SettingsController.updateTimezone);
+
+// GET /api/v1/settings/timezones - Listar fusos horários disponíveis
+router.get('/timezones', SettingsController.getAvailableTimezones);
 
 export default router;
 

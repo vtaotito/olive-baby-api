@@ -423,6 +423,9 @@ model UserSettings {
   theme                String   @default("system") @db.VarChar(20)
   language             String   @default("pt-BR") @db.VarChar(10)
   
+  // Timezone (IANA timezone identifier, e.g., "America/Sao_Paulo")
+  timezone             String   @default("America/Sao_Paulo") @db.VarChar(50)
+  
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
   

@@ -1,6 +1,7 @@
 // Olive Baby API - Settings Service
 import { prisma } from '../config/database';
 import { AppError } from '../utils/errors/AppError';
+import { isValidTimezone, DEFAULT_TIMEZONE, SUPPORTED_TIMEZONES } from '../utils/helpers/timezone.helper';
 
 interface NotificationSettings {
   pushEnabled: boolean;
@@ -21,6 +22,7 @@ interface NotificationSettings {
 interface AppearanceSettings {
   theme: 'light' | 'dark' | 'system';
   language: string;
+  timezone: string;
 }
 
 interface UserSettingsResponse {
@@ -45,6 +47,7 @@ const DEFAULT_SETTINGS = {
   },
   theme: 'system',
   language: 'pt-BR',
+  timezone: DEFAULT_TIMEZONE,
 };
 
 export class SettingsService {
@@ -76,8 +79,48 @@ export class SettingsService {
       appearance: {
         theme: settings.theme as 'light' | 'dark' | 'system',
         language: settings.language,
+        timezone: settings.timezone,
       },
     };
+  }
+
+  /**
+   * Get user timezone only (fast lookup)
+   */
+  static async getUserTimezone(userId: number): Promise<string> {
+    const settings = await prisma.userSettings.findUnique({
+      where: { userId },
+      select: { timezone: true },
+    });
+    return settings?.timezone || DEFAULT_TIMEZONE;
+  }
+
+  /**
+   * Update user timezone
+   */
+  static async updateTimezone(userId: number, timezone: string): Promise<string> {
+    if (!isValidTimezone(timezone)) {
+      throw AppError.badRequest('Fuso horário inválido');
+    }
+
+    await prisma.userSettings.upsert({
+      where: { userId },
+      update: { timezone },
+      create: {
+        userId,
+        timezone,
+        routineNotifications: DEFAULT_SETTINGS.routineNotifications,
+      },
+    });
+
+    return timezone;
+  }
+
+  /**
+   * Get available timezones
+   */
+  static getAvailableTimezones() {
+    return SUPPORTED_TIMEZONES;
   }
 
   static async updateNotifications(
@@ -137,6 +180,11 @@ export class SettingsService {
       throw AppError.badRequest('Tema inválido. Use: light, dark ou system');
     }
 
+    // Validate timezone
+    if (data.timezone && !isValidTimezone(data.timezone)) {
+      throw AppError.badRequest('Fuso horário inválido');
+    }
+
     // Get current settings or create default
     let settings = await prisma.userSettings.findUnique({
       where: { userId },
@@ -148,6 +196,7 @@ export class SettingsService {
           userId,
           theme: data.theme || DEFAULT_SETTINGS.theme,
           language: data.language || DEFAULT_SETTINGS.language,
+          timezone: data.timezone || DEFAULT_TIMEZONE,
           routineNotifications: DEFAULT_SETTINGS.routineNotifications,
         },
       });
@@ -157,6 +206,7 @@ export class SettingsService {
         data: {
           theme: data.theme ?? settings.theme,
           language: data.language ?? settings.language,
+          timezone: data.timezone ?? settings.timezone,
         },
       });
     }
@@ -164,6 +214,7 @@ export class SettingsService {
     return {
       theme: settings.theme as 'light' | 'dark' | 'system',
       language: settings.language,
+      timezone: settings.timezone,
     };
   }
 }

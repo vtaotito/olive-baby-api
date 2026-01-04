@@ -25,6 +25,11 @@ export const notificationSettingsSchema = z.object({
 export const appearanceSettingsSchema = z.object({
   theme: z.enum(['light', 'dark', 'system']).optional(),
   language: z.string().min(2).max(10).optional(),
+  timezone: z.string().min(1).max(50).optional(),
+});
+
+export const timezoneSchema = z.object({
+  timezone: z.string().min(1).max(50),
 });
 
 export class SettingsController {
@@ -95,6 +100,83 @@ export class SettingsController {
         success: true,
         message: 'Configurações de aparência atualizadas',
         data: appearance,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /settings/timezone
+   * Get user's timezone
+   */
+  static async getTimezone(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const userId = req.user?.userId;
+
+      if (!userId) {
+        throw AppError.unauthorized('Usuário não autenticado');
+      }
+
+      const timezone = await SettingsService.getUserTimezone(userId);
+
+      res.status(200).json({
+        success: true,
+        data: { timezone },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * PUT /settings/timezone
+   * Update user's timezone
+   */
+  static async updateTimezone(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const userId = req.user?.userId;
+
+      if (!userId) {
+        throw AppError.unauthorized('Usuário não autenticado');
+      }
+
+      const { timezone } = req.body;
+      const updatedTimezone = await SettingsService.updateTimezone(userId, timezone);
+
+      res.status(200).json({
+        success: true,
+        message: 'Fuso horário atualizado',
+        data: { timezone: updatedTimezone },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /settings/timezones
+   * Get available timezones list
+   */
+  static async getAvailableTimezones(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const timezones = SettingsService.getAvailableTimezones();
+
+      res.status(200).json({
+        success: true,
+        data: timezones,
       });
     } catch (error) {
       next(error);
