@@ -26,6 +26,11 @@ router.use(authMiddleware);
 // Query params: babyId, routineType (FEEDING, SLEEP, BATH)
 router.get('/open', RoutineController.getOpenRoutine);
 
+// GET /api/v1/routines/open-all - Retorna todas as rotinas abertas de um bebê
+// Query params: babyId
+// Otimização: 1 request ao invés de 4 paralelas
+router.get('/open-all', RoutineController.getAllOpenRoutines);
+
 // ==========================================
 // CRUD Básico
 // ==========================================

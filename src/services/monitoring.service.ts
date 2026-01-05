@@ -276,9 +276,16 @@ class MonitoringService {
 
     alertCache.set(alertKey, Date.now());
 
-    // Log do alerta (mapear critical para error no winston)
-    const logLevel = alert.level === 'critical' ? 'error' : alert.level;
-    logger[logLevel as 'error' | 'info' | 'warning'](alert.message, {
+    // Log do alerta (mapear para níveis válidos do Winston)
+    // Winston não tem 'warning', usa 'warn'
+    // Winston não tem 'critical', usa 'error'
+    const logLevel = alert.level === 'critical' 
+      ? 'error' 
+      : alert.level === 'warning' 
+        ? 'warn' 
+        : alert.level;
+    
+    logger[logLevel as 'error' | 'info' | 'warn'](alert.message, {
       title: alert.title,
       component: alert.component,
       alertLevel: alert.level,

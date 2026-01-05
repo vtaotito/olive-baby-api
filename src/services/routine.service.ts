@@ -352,6 +352,39 @@ export class RoutineService {
     return openRoutine;
   }
 
+  /**
+   * Busca todas as rotinas abertas de um bebê em uma única query
+   * Otimização: 1 query ao invés de 4 queries paralelas
+   */
+  static async getAllOpenRoutines(caregiverId: number, babyId: number) {
+    // Verificar acesso ao bebê
+    const hasAccess = await prisma.caregiverBaby.findFirst({
+      where: { babyId, caregiverId },
+    });
+
+    if (!hasAccess) {
+      throw AppError.forbidden('Você não tem acesso a este bebê');
+    }
+
+    // Buscar todas as rotinas abertas em uma única query
+    const openRoutines = await prisma.routineLog.findMany({
+      where: {
+        babyId,
+        endTime: null, // Rotinas sem fim = abertas
+        routineType: { in: TIMED_ROUTINES }
+      },
+      orderBy: { startTime: 'desc' }
+    });
+
+    // Mapear para objeto com chaves por tipo
+    return {
+      feeding: openRoutines.find(r => r.routineType === 'FEEDING') || null,
+      sleep: openRoutines.find(r => r.routineType === 'SLEEP') || null,
+      bath: openRoutines.find(r => r.routineType === 'BATH') || null,
+      extraction: openRoutines.find(r => r.routineType === 'MILK_EXTRACTION') || null,
+    };
+  }
+
   // ==========================================
   // Rotinas Instantâneas (sem timer)
   // ==========================================

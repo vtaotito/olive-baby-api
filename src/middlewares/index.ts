@@ -5,3 +5,4 @@ export * from './validation.middleware';
 export * from './error.middleware';
 export * from './entitlements.middleware';
 export * from './apiEvents.middleware';
+export * from './correlation.middleware';

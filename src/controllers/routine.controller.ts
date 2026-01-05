@@ -506,6 +506,40 @@ export class RoutineController {
   }
 
   // ==========================================
+  // Endpoint Consolidado - Todas as Rotinas Abertas
+  // Otimização: 1 request ao invés de 4 paralelas
+  // ==========================================
+
+  static async getAllOpenRoutines(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      if (!req.user) {
+        throw AppError.unauthorized();
+      }
+
+      const caregiverId = await RoutineController.getCaregiverId(req.user.userId);
+      const babyId = parseInt(req.query.babyId as string, 10);
+
+      if (!babyId) {
+        throw AppError.badRequest('babyId é obrigatório');
+      }
+
+      const openRoutines = await RoutineService.getAllOpenRoutines(caregiverId, babyId);
+
+      res.status(200).json({
+        success: true,
+        data: openRoutines,
+        hasAnyOpen: !!(openRoutines.feeding || openRoutines.sleep || openRoutines.bath || openRoutines.extraction),
+      } as any);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // ==========================================
   // Extração de Leite - Com timer
   // ==========================================
 

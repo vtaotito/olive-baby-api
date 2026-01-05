@@ -36,6 +36,7 @@ enum Relationship {
   GRANDFATHER
   AUNT
   UNCLE
+  NANNY
   CAREGIVER
   OTHER
 }

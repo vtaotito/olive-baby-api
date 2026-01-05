@@ -9,6 +9,7 @@ import { env, isDevelopment } from './config/env';
 import { connectDatabase, disconnectDatabase } from './config/database';
 import { errorMiddleware, notFoundMiddleware } from './middlewares/error.middleware';
 import { apiEventsMiddleware } from './middlewares/apiEvents.middleware';
+import { correlationMiddleware } from './middlewares/correlation.middleware';
 import { logger } from './config/logger';
 import { monitoringService } from './services/monitoring.service';
 import { ensureInitialAdmin } from './utils/ensureAdmin';
@@ -47,6 +48,11 @@ app.use(cors({
 // Endpoints críticos (forgot-password, etc) têm rate limiting próprio
 
 // ==========================================
+// Correlation ID - Rastreabilidade de Requests
+// ==========================================
+app.use(correlationMiddleware);
+
+// ==========================================
 // Middlewares de Parsing
 // ==========================================
 
@@ -80,13 +86,15 @@ app.use((req, res, next) => {
   
   res.on('finish', () => {
     const duration = Date.now() - start;
-    logger.info('HTTP Request', {
+    // Usar req.logger para incluir correlationId automaticamente
+    (req.logger || logger).info('HTTP Request', {
       method: req.method,
       url: req.url,
       statusCode: res.statusCode,
       duration: `${duration}ms`,
       ip: req.ip,
       userAgent: req.get('user-agent'),
+      correlationId: req.correlationId,
     });
 
     // Registrar erro se status >= 400
