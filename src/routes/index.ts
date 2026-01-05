@@ -49,13 +49,16 @@ router.use('/admin/ai', adminAiRoutes);
 router.use('/onboarding', onboardingRoutes);
 router.use('/notifications', notificationRoutes);
 
+// IMPORTANTE: Rotas públicas de convite DEVEM vir ANTES de rotas com authMiddleware global
+// Isso garante que /invites/verify-token seja acessível sem autenticação
+router.use('/', babyInviteRoutes); // Rotas: /invites/* (públicas) e /babies/:babyId/invites
+
 // Baby-scoped routes (nested under /babies/:babyId/)
 // IMPORTANTE: Registrar rotas específicas ANTES das rotas genéricas de /babies
 router.use('/babies/:babyId/professionals', babyProfessionalRouter);
 router.use('/babies/:babyId/growth', babyGrowthRouter);
 router.use('/babies/:babyId/milestones', babyMilestoneRouter);
 router.use('/', babyMemberRoutes); // Rotas: /babies/:babyId/members
-router.use('/', babyInviteRoutes); // Rotas: /babies/:babyId/invites
 
 // Rotas genéricas de babies (deve vir por último para não capturar rotas específicas)
 router.use('/babies', babyRoutes);
