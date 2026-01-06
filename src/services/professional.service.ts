@@ -64,20 +64,55 @@ export async function getProfessionalsByBaby(babyId: number, caregiverId: number
           city: true,
           state: true,
           status: true,
+          inviteExpiresAt: true,
           createdAt: true,
+          updatedAt: true,
+          userId: true,
         }
       }
     },
     orderBy: { createdAt: 'desc' }
   });
 
-  return babyProfessionals.map(bp => ({
-    id: bp.id,
-    role: bp.role,
-    notes: bp.notes,
-    createdAt: bp.createdAt,
-    professional: bp.professional
-  }));
+  return babyProfessionals.map(bp => {
+    // Derive a normalized status for UI
+    let displayStatus: 'PENDING' | 'ACTIVE' | 'EXPIRED' | 'BLOCKED' = 'PENDING';
+    
+    if (bp.professional.status === 'ACTIVE') {
+      displayStatus = 'ACTIVE';
+    } else if (bp.professional.status === 'BLOCKED') {
+      displayStatus = 'BLOCKED';
+    } else if (bp.professional.inviteExpiresAt && bp.professional.inviteExpiresAt < new Date()) {
+      displayStatus = 'EXPIRED';
+    } else {
+      displayStatus = 'PENDING';
+    }
+
+    return {
+      id: bp.id,
+      role: bp.role,
+      notes: bp.notes,
+      createdAt: bp.createdAt,
+      // Derived fields for UX
+      invitedAt: bp.createdAt,
+      acceptedAt: bp.professional.status === 'ACTIVE' ? bp.professional.updatedAt : null,
+      expiresAt: bp.professional.inviteExpiresAt,
+      displayStatus,
+      professional: {
+        id: bp.professional.id,
+        fullName: bp.professional.fullName,
+        email: bp.professional.email,
+        specialty: bp.professional.specialty,
+        crmNumber: bp.professional.crmNumber,
+        crmState: bp.professional.crmState,
+        phone: bp.professional.phone,
+        city: bp.professional.city,
+        state: bp.professional.state,
+        status: bp.professional.status,
+        createdAt: bp.professional.createdAt,
+      }
+    };
+  });
 }
 
 // Get a single professional

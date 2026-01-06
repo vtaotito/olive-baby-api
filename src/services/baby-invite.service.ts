@@ -4,6 +4,7 @@ import { AppError } from '../utils/errors/AppError';
 import { BabyMemberType, BabyMemberRole, BabyInviteStatus } from '@prisma/client';
 import crypto from 'crypto';
 import { requireBabyOwner, canAddOwner } from '../utils/helpers/baby-permission.helper';
+import { logger } from '../config/logger';
 
 export interface CreateBabyInviteData {
   babyId: number;
@@ -114,6 +115,17 @@ export async function createBabyInvite(
     }
   });
 
+  // Log: invite_sent
+  logger.info('invite_sent', {
+    event: 'invite_sent',
+    babyId: data.babyId,
+    inviterUserId: createdByUserId,
+    inviteeEmail: data.emailInvited.substring(0, 3) + '***',
+    memberType: data.memberType,
+    role: data.role,
+    inviteId: invite.id,
+  });
+
   return {
     invite,
     token // Retornar token apenas na criação (não salvar em texto puro)
@@ -140,17 +152,21 @@ export async function verifyInviteToken(token: string): Promise<VerifyInviteToke
   });
 
   if (!invite) {
+    logger.warn('invite_invalid', { event: 'invite_invalid', reason: 'token_not_found' });
     throw AppError.badRequest('Token de convite inválido');
   }
 
   if (invite.status !== BabyInviteStatus.PENDING) {
     if (invite.status === BabyInviteStatus.ACCEPTED) {
+      logger.info('invite_already_accepted', { event: 'invite_already_accepted', inviteId: invite.id });
       throw AppError.badRequest('Este convite já foi aceito');
     }
     if (invite.status === BabyInviteStatus.EXPIRED) {
+      logger.info('invite_expired', { event: 'invite_expired', inviteId: invite.id });
       throw AppError.badRequest('Este convite expirou');
     }
     if (invite.status === BabyInviteStatus.REVOKED) {
+      logger.info('invite_revoked', { event: 'invite_revoked', inviteId: invite.id });
       throw AppError.badRequest('Este convite foi revogado');
     }
   }
@@ -259,6 +275,17 @@ export async function acceptInvite(
       }
     });
 
+    // Log: invite_accepted
+    logger.info('invite_accepted', {
+      event: 'invite_accepted',
+      babyId: verification.invite.babyId,
+      userId,
+      memberType: verification.invite.memberType,
+      role: verification.invite.role,
+      inviteId: verification.invite.id,
+      memberId: member.id,
+    });
+
     return member;
   });
 
@@ -311,6 +338,15 @@ export async function resendBabyInvite(
     }
   });
 
+  // Log: invite_resend
+  logger.info('invite_resend', {
+    event: 'invite_resend',
+    inviteId,
+    babyId: invite.babyId,
+    inviteeEmail: invite.emailInvited.substring(0, 3) + '***',
+    requestingUserId,
+  });
+
   return {
     invite: updatedInvite,
     token
@@ -340,10 +376,21 @@ export async function revokeBabyInvite(
     throw AppError.badRequest('Não é possível revogar um convite já aceito');
   }
 
-  return prisma.babyInvite.update({
+  const revokedInvite = await prisma.babyInvite.update({
     where: { id: inviteId },
     data: { status: BabyInviteStatus.REVOKED }
   });
+
+  // Log: invite_revoked
+  logger.info('invite_revoked', {
+    event: 'invite_revoked',
+    inviteId,
+    babyId: invite.babyId,
+    inviteeEmail: invite.emailInvited.substring(0, 3) + '***',
+    requestingUserId,
+  });
+
+  return revokedInvite;
 }
 
 /**
