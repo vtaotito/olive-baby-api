@@ -25,4 +25,11 @@ router.get(
   StatsController.getHistory
 );
 
+// GET /api/v1/stats/:babyId/volume-by-type - Volumetria por tipo de leite
+router.get(
+  '/:babyId/volume-by-type', 
+  requirePermission('canViewStats'),
+  StatsController.getVolumeByType
+);
+
 export default router;

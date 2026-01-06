@@ -52,9 +52,11 @@ export interface FeedingMeta {
   breastSide?: 'left' | 'right' | 'both';
   bottleMl?: number;
   bottleMilkType?: 'breast_milk' | 'formula' | 'mixed';
+  bottleContent?: 'breast_milk' | 'formula' | 'mixed';
   complement?: 'yes' | 'no';
   complementMl?: number;
-  complementType?: 'breast_milk' | 'formula';
+  complementType?: 'breast_milk' | 'formula' | 'donated_milk';
+  complementIsMixed?: boolean;
   solidFoods?: string[];
 }
 

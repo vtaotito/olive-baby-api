@@ -342,4 +342,110 @@ export class StatsService {
 
     return counts;
   }
+
+  /**
+   * Calcula volumetria por tipo de leite (Leite Materno, Fórmula, Misto)
+   * Inclui mamadeira + complemento da amamentação
+   */
+  static async getVolumeByType(caregiverId: number, babyId: number, days: number = 7) {
+    // Verificar acesso ao bebê
+    const hasAccess = await prisma.caregiverBaby.findFirst({
+      where: { babyId, caregiverId },
+    });
+
+    if (!hasAccess) {
+      throw AppError.forbidden('Você não tem acesso a este bebê');
+    }
+
+    const { start, end } = getDateRange(days);
+
+    // Buscar todas as rotinas de alimentação do período
+    const routines = await prisma.routineLog.findMany({
+      where: {
+        babyId,
+        routineType: 'FEEDING',
+        startTime: {
+          gte: start,
+          lte: end,
+        },
+      },
+      orderBy: { startTime: 'asc' },
+    });
+
+    // Gerar labels de datas
+    const labels = this.generateDateLabels(start, days);
+
+    // Calcular volumetria por tipo para cada dia
+    const breastMilkMl: number[] = [];
+    const formulaMl: number[] = [];
+    const mixedMl: number[] = [];
+
+    for (let i = 0; i < days; i++) {
+      const dayStart = new Date(start);
+      dayStart.setDate(dayStart.getDate() + i);
+      dayStart.setHours(0, 0, 0, 0);
+      
+      const dayEnd = new Date(dayStart);
+      dayEnd.setHours(23, 59, 59, 999);
+
+      const dayRoutines = routines.filter(
+        r => r.startTime >= dayStart && r.startTime <= dayEnd
+      );
+
+      let dayBreastMilk = 0;
+      let dayFormula = 0;
+      let dayMixed = 0;
+
+      for (const routine of dayRoutines) {
+        const meta = routine.meta as FeedingMeta | null;
+        if (!meta) continue;
+
+        // Processar mamadeira
+        if (meta.feedingType === 'bottle' && meta.bottleMl) {
+          const bottleType = meta.bottleMilkType || meta.bottleContent;
+          
+          if (bottleType === 'breast_milk') {
+            dayBreastMilk += meta.bottleMl;
+          } else if (bottleType === 'formula') {
+            dayFormula += meta.bottleMl;
+          } else if (bottleType === 'mixed') {
+            dayMixed += meta.bottleMl;
+          }
+        }
+
+        // Processar complemento na amamentação
+        if (meta.feedingType === 'breast' && meta.complement === 'yes' && meta.complementMl) {
+          if (meta.complementIsMixed) {
+            dayMixed += meta.complementMl;
+          } else if (meta.complementType === 'formula') {
+            dayFormula += meta.complementMl;
+          } else if (meta.complementType === 'donated_milk' || meta.complementType === 'breast_milk') {
+            dayBreastMilk += meta.complementMl;
+          }
+        }
+      }
+
+      breastMilkMl.push(dayBreastMilk);
+      formulaMl.push(dayFormula);
+      mixedMl.push(dayMixed);
+    }
+
+    // Totais do período
+    const totalBreastMilk = breastMilkMl.reduce((a, b) => a + b, 0);
+    const totalFormula = formulaMl.reduce((a, b) => a + b, 0);
+    const totalMixed = mixedMl.reduce((a, b) => a + b, 0);
+
+    return {
+      labels,
+      breastMilkMl,
+      formulaMl,
+      mixedMl,
+      totals: {
+        breastMilk: totalBreastMilk,
+        formula: totalFormula,
+        mixed: totalMixed,
+        total: totalBreastMilk + totalFormula + totalMixed,
+      },
+    };
+  }
 }

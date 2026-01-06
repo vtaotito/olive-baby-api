@@ -78,6 +78,39 @@ export class StatsController {
     }
   }
 
+  // Endpoint de volumetria por tipo de leite
+  static async getVolumeByType(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      if (!req.user) {
+        throw AppError.unauthorized();
+      }
+
+      const babyId = parseInt(req.params.babyId, 10);
+      const range = (req.query.range as string) || '7d';
+      
+      const daysMap: Record<string, number> = {
+        '7d': 7,
+        '14d': 14,
+        '30d': 30,
+      };
+      const days = daysMap[range] || 7;
+
+      const caregiverId = await StatsController.getCaregiverId(req.user.userId);
+      const volumeData = await StatsService.getVolumeByType(caregiverId, babyId, days);
+
+      res.status(200).json({
+        success: true,
+        data: volumeData,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // Endpoint de histórico para gráficos
   static async getHistory(
     req: AuthenticatedRequest,
