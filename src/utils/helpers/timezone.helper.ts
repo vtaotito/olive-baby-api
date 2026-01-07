@@ -1,7 +1,8 @@
 // Olive Baby API - Timezone Helpers
 // Handles timezone conversions for consistent date/time handling across the app
 
-import { format, parseISO, formatInTimeZone, toZonedTime, fromZonedTime } from 'date-fns-tz';
+import { formatInTimeZone, toZonedTime, fromZonedTime } from 'date-fns-tz';
+import { parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 // Default timezone for Brazil
