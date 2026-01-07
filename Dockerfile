@@ -48,4 +48,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD wget -q --spider http://localhost:4000/health || exit 1
 
 # Script de inicialização que resolve migrações falhas, aplica pendentes e inicia a aplicação
-CMD ["sh", "-c", "npx prisma migrate resolve --rolled-back 20260103211800_promote_admin 2>/dev/null || true; npx prisma migrate deploy && npm start"]
+CMD ["sh", "-c", "npx prisma migrate resolve --rolled-back 20260103_promote_admin 2>/dev/null || true; npx prisma migrate deploy && npm start"]
