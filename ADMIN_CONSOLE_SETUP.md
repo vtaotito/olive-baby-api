@@ -156,7 +156,7 @@ curl -X PATCH http://localhost:4000/api/v1/admin/users/123/status \
 | Plano | Preço | Bebês | Profissionais | Export | AI Chat |
 |-------|-------|-------|---------------|--------|---------|
 | FREE | R$ 0 | 1 | 0 | ❌ | ❌ |
-| PREMIUM | R$ 29,90/mês | 5 | 10 | ✅ | ✅ |
+| PREMIUM | R$ 29,99/mês | 5 | 10 | ✅ | ✅ |
 
 ### Features por Plano
 

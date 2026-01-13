@@ -175,7 +175,7 @@ WHERE NOT EXISTS (SELECT 1 FROM "plans" WHERE "type" = 'FREE');
 
 -- Ensure PREMIUM plan exists
 INSERT INTO "plans" ("name", "code", "type", "description", "price", "price_yearly", "currency", "limits", "features", "is_active", "created_at", "updated_at")
-SELECT 'Premium', 'PREMIUM', 'PREMIUM', 'Plano premium com todos os recursos', 29.90, 287.90, 'BRL',
+SELECT 'Premium', 'PREMIUM', 'PREMIUM', 'Plano premium com todos os recursos', 29.99, 299.90, 'BRL',
   '{"maxBabies":5,"maxProfessionals":10,"maxExportsPerMonth":100,"historyDays":365}'::jsonb,
   '{"exportPdf":true,"exportCsv":true,"advancedInsights":true,"aiChat":true,"multiCaregivers":true,"prioritySupport":true}'::jsonb,
   true, NOW(), NOW()

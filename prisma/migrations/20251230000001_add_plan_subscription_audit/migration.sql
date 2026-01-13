@@ -138,7 +138,7 @@ VALUES
   'Premium',
   'PREMIUM',
   'Plano premium com todos os recursos',
-  29.90,
+  29.99,
   '{"maxBabies": 5, "maxProfessionals": 10, "maxExportsPerMonth": -1, "historyDays": -1}',
   '{"exportPdf": true, "exportCsv": true, "advancedInsights": true, "aiChat": true, "multiCaregivers": true, "prioritySupport": true}',
   true,
