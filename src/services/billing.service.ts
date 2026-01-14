@@ -90,16 +90,19 @@ export class BillingService {
       throw AppError.internal('Stripe não está configurado');
     }
 
-    // Get plan
+    // Get plan (case-insensitive search)
     const plan = await prisma.plan.findFirst({
       where: { 
-        code: planCode,
+        code: {
+          equals: planCode,
+          mode: 'insensitive',
+        },
         isActive: true,
       },
     });
 
     if (!plan) {
-      throw AppError.notFound('Plano não encontrado');
+      throw AppError.notFound(`Plano '${planCode}' não encontrado`);
     }
 
     // Determine price ID based on interval
@@ -347,12 +350,12 @@ export class BillingService {
       return;
     }
 
-    // Get plan from metadata or price
+    // Get plan from metadata or price (case-insensitive code search)
     const planCode = subscription.metadata?.planCode || 'PREMIUM';
     const plan = await prisma.plan.findFirst({
       where: { 
         OR: [
-          { code: planCode },
+          { code: { equals: planCode, mode: 'insensitive' } },
           { stripePriceIdMonthly: subscription.items.data[0]?.price.id },
           { stripePriceIdYearly: subscription.items.data[0]?.price.id },
         ],
