@@ -335,8 +335,19 @@ export class BillingService {
       return;
     }
 
-    // Subscription is handled by subscription.created event
-    logger.info(`Checkout completed for user ${userId}`);
+    logger.info(`Checkout completed for user ${userId}, processing subscription...`);
+
+    // Fetch the subscription from Stripe and process it
+    if (session.subscription && stripe) {
+      try {
+        const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
+        await this.handleSubscriptionUpdated(subscription);
+        logger.info(`Subscription ${subscription.id} processed from checkout for user ${userId}`);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        logger.error(`Failed to process subscription from checkout: ${errorMessage}`);
+      }
+    }
   }
 
   /**
