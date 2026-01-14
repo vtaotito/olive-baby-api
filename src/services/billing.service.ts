@@ -117,13 +117,24 @@ export class BillingService {
     // Get or create customer
     const customerId = await this.getOrCreateStripeCustomer(userId);
 
-    // Check for existing active subscription
+    // Check for existing subscription
     const existingSubscription = await prisma.subscription.findUnique({
       where: { userId },
     });
 
-    if (existingSubscription && existingSubscription.status === 'ACTIVE') {
-      throw AppError.conflict('Usuário já possui uma assinatura ativa. Use o portal para gerenciar.');
+    if (existingSubscription) {
+      // If subscription has Stripe ID and is active, block new checkout
+      if (existingSubscription.status === 'ACTIVE' && existingSubscription.stripeSubscriptionId) {
+        throw AppError.conflict('Usuário já possui uma assinatura ativa. Use o portal para gerenciar.');
+      }
+      
+      // If subscription exists but has no Stripe ID (orphan) or is not active, clean it up
+      if (!existingSubscription.stripeSubscriptionId || existingSubscription.status !== 'ACTIVE') {
+        await prisma.subscription.delete({
+          where: { userId },
+        });
+        logger.info(`Orphan subscription removed for user ${userId}`);
+      }
     }
 
     // Create checkout session
