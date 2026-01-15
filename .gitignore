@@ -39,6 +39,7 @@ docker-compose.vps-update.yml
 docker-compose.vps-updated.yml
 docker-compose.vps.ai.yml
 docker-compose.vps-ai.yml
+docker-compose.prod.yml
 
 # Archive files
 *.zip
