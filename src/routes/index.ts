@@ -7,6 +7,7 @@ import routineRoutes from './routine.routes';
 import statsRoutes from './stats.routes';
 import growthRoutes, { babyGrowthRouter } from './growth.routes';
 import milestoneRoutes, { babyMilestoneRouter } from './milestone.routes';
+import vaccineRoutes, { babyVaccineRouter } from './vaccine.routes';
 import exportRoutes from './export.routes';
 import professionalRoutes, { babyProfessionalRouter } from './professional.routes';
 import monitoringRoutes from './monitoring.routes';
@@ -38,6 +39,7 @@ router.use('/routines', routineRoutes);
 router.use('/stats', statsRoutes);
 router.use('/growth', growthRoutes);
 router.use('/milestones', milestoneRoutes);
+router.use('/vaccines', vaccineRoutes);
 router.use('/export', exportRoutes);
 router.use('/professionals', professionalRoutes);
 router.use('/monitoring', monitoringRoutes);
@@ -58,6 +60,7 @@ router.use('/', babyInviteRoutes); // Rotas: /invites/* (públicas) e /babies/:b
 router.use('/babies/:babyId/professionals', babyProfessionalRouter);
 router.use('/babies/:babyId/growth', babyGrowthRouter);
 router.use('/babies/:babyId/milestones', babyMilestoneRouter);
+router.use('/babies/:babyId/vaccines', babyVaccineRouter);
 router.use('/', babyMemberRoutes); // Rotas: /babies/:babyId/members
 
 // Rotas genéricas de babies (deve vir por último para não capturar rotas específicas)

@@ -19,6 +19,7 @@ export interface PlanFeatures {
   aiChat: boolean;
   multiCaregivers: boolean;
   prioritySupport: boolean;
+  vaccines: boolean; // Calendário de vacinas
 }
 
 // Feature keys for type-safe checks
@@ -60,6 +61,7 @@ export const DEFAULT_FREE_FEATURES: PlanFeatures = {
   aiChat: false,
   multiCaregivers: false,
   prioritySupport: false,
+  vaccines: false,
 };
 
 export const DEFAULT_PREMIUM_LIMITS: PlanLimits = {
@@ -76,6 +78,7 @@ export const DEFAULT_PREMIUM_FEATURES: PlanFeatures = {
   aiChat: true,
   multiCaregivers: true,
   prioritySupport: true,
+  vaccines: true,
 };
 
 // ==========================================
@@ -103,6 +106,7 @@ export const FEATURE_DISPLAY_NAMES: Record<FeatureKey, string> = {
   aiChat: 'Assistente IA',
   multiCaregivers: 'Múltiplos Cuidadores',
   prioritySupport: 'Suporte Prioritário',
+  vaccines: 'Calendário de Vacinas',
 };
 
 export const RESOURCE_DISPLAY_NAMES: Record<ResourceKey, string> = {

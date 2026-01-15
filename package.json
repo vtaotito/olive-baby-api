@@ -17,7 +17,8 @@
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
     "ai:ingest": "ts-node src/scripts/ai-ingest.ts",
-    "migrate:password-reset": "ts-node src/scripts/apply-password-reset-migration.ts"
+    "migrate:password-reset": "ts-node src/scripts/apply-password-reset-migration.ts",
+    "seed:vaccines": "ts-node src/scripts/seed-vaccines-pni.ts"
   },
   "keywords": [
     "baby",

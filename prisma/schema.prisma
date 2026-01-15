@@ -150,6 +150,21 @@ enum NotificationSeverity {
   success
 }
 
+// ==========================================
+// VACCINE ENUMS
+// ==========================================
+
+enum VaccineStatus {
+  PENDING
+  APPLIED
+  SKIPPED
+}
+
+enum VaccineCalendarSource {
+  PNI       // Programa Nacional de Imunização (Brasil)
+  SBIM      // Sociedade Brasileira de Imunizações (privado)
+}
+
 enum AuditAction {
   // Plan & Billing
   PAYWALL_HIT
@@ -262,6 +277,7 @@ model Baby {
   milestones       Milestone[]
   chatSessions     AiChatSession[]
   insights         AiInsight[]
+  vaccineRecords   BabyVaccineRecord[]
 
   @@map("babies")
 }
@@ -836,4 +852,64 @@ model Notification {
   @@index([userId, type])
   @@index([createdAt])
   @@map("notifications")
+}
+
+// ==========================================
+// VACCINE MODELS
+// ==========================================
+
+// Definição das vacinas do calendário (template/seed)
+model VaccineDefinition {
+  id                  Int                   @id @default(autoincrement())
+  vaccineKey          String                @map("vaccine_key") @db.VarChar(50) // Ex: BCG, HEPATITE_B, PENTA
+  name                String                @db.VarChar(100) // Ex: BCG, Hepatite B
+  description         String?               @db.VarChar(500)
+  doseLabel           String                @map("dose_label") @db.VarChar(50) // Ex: "dose única", "1ª dose", "reforço"
+  doseNumber          Int                   @default(1) @map("dose_number")
+  ageMonths           Int                   @map("age_months") // Idade recomendada em meses (0 = ao nascer)
+  ageDays             Int?                  @map("age_days") // Dias adicionais (para precisão)
+  ageMaxMonths        Int?                  @map("age_max_months") // Idade máxima (para janelas como HPV 9-14 anos)
+  source              VaccineCalendarSource @default(PNI)
+  notes               String?               @db.VarChar(500) // Observações especiais
+  isOptional          Boolean               @default(false) @map("is_optional")
+  sortOrder           Int                   @default(0) @map("sort_order")
+  createdAt           DateTime              @default(now()) @map("created_at")
+  updatedAt           DateTime              @updatedAt @map("updated_at")
+
+  @@unique([vaccineKey, doseLabel, source])
+  @@index([source])
+  @@index([ageMonths])
+  @@index([sortOrder])
+  @@map("vaccine_definitions")
+}
+
+// Registro de vacinas do bebê
+model BabyVaccineRecord {
+  id                  Int                   @id @default(autoincrement())
+  babyId              Int                   @map("baby_id")
+  vaccineKey          String                @map("vaccine_key") @db.VarChar(50)
+  vaccineName         String                @map("vaccine_name") @db.VarChar(100)
+  doseLabel           String                @map("dose_label") @db.VarChar(50)
+  doseNumber          Int                   @default(1) @map("dose_number")
+  recommendedAt       DateTime              @map("recommended_at") @db.Date // Data recomendada baseada no birthDate
+  appliedAt           DateTime?             @map("applied_at") @db.Date // Data em que foi aplicada
+  status              VaccineStatus         @default(PENDING)
+  source              VaccineCalendarSource @default(PNI)
+  
+  // Campos opcionais para registro detalhado
+  lotNumber           String?               @map("lot_number") @db.VarChar(50) // Lote da vacina
+  clinicName          String?               @map("clinic_name") @db.VarChar(200) // Local de aplicação
+  professionalName    String?               @map("professional_name") @db.VarChar(200) // Profissional que aplicou
+  notes               String?               @db.VarChar(500)
+  
+  createdAt           DateTime              @default(now()) @map("created_at")
+  updatedAt           DateTime              @updatedAt @map("updated_at")
+
+  baby                Baby                  @relation(fields: [babyId], references: [id], onDelete: Cascade)
+
+  @@unique([babyId, vaccineKey, doseLabel, source])
+  @@index([babyId, recommendedAt])
+  @@index([babyId, vaccineKey])
+  @@index([babyId, status])
+  @@map("baby_vaccine_records")
 }
