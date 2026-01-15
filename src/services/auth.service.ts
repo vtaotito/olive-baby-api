@@ -49,10 +49,21 @@ interface AuthResponse {
 
 export class AuthService {
   static async register(input: RegisterInput): Promise<AuthResponse> {
-    // Validar CPF
-    const cleanedCpf = cleanCPF(input.cpf);
-    if (!validateCPF(cleanedCpf)) {
-      throw AppError.badRequest('CPF inválido');
+    // Validar CPF (somente se fornecido)
+    let cleanedCpf: string | undefined = undefined;
+    if (input.cpf && input.cpf.length >= 11) {
+      cleanedCpf = cleanCPF(input.cpf);
+      if (!validateCPF(cleanedCpf)) {
+        throw AppError.badRequest('CPF inválido');
+      }
+
+      // Verificar se CPF já existe
+      const existingCpf = await prisma.caregiver.findUnique({
+        where: { cpf: cleanedCpf },
+      });
+      if (existingCpf) {
+        throw AppError.conflict('Este CPF já está cadastrado');
+      }
     }
 
     // Validar senha
@@ -67,14 +78,6 @@ export class AuthService {
     });
     if (existingEmail) {
       throw AppError.conflict('Este email já está cadastrado');
-    }
-
-    // Verificar se CPF já existe
-    const existingCpf = await prisma.caregiver.findUnique({
-      where: { cpf: cleanedCpf },
-    });
-    if (existingCpf) {
-      throw AppError.conflict('Este CPF já está cadastrado');
     }
 
     // Hash da senha
