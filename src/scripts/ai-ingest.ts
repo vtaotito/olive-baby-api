@@ -119,7 +119,7 @@ function extractTags(content: string, filePath: string): string[] {
   // Extract from content keywords
   const tagKeywords: Record<string, string[]> = {
     sono: ['sono', 'dormir', 'soneca', 'noite', 'acordar', 'regressão'],
-    amamentacao: ['amamentação', 'mamar', 'peito', 'mama', 'leite materno', 'livre demanda'],
+    amamentacao: ['amamentação', 'mamar', 'seio', 'mama', 'leite materno', 'livre demanda'],
     alimentacao: ['alimentação', 'comida', 'papinha', 'introdução alimentar', 'blw'],
     fralda: ['fralda', 'xixi', 'cocô', 'evacuação'],
     desenvolvimento: ['desenvolvimento', 'marco', 'milestone', 'motor', 'cognitivo'],

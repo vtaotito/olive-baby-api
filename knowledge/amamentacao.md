@@ -2,7 +2,7 @@
 
 ## Livre Demanda
 
-A amamentação em livre demanda significa oferecer o peito sempre que o bebê demonstrar sinais de fome, sem seguir horários rígidos. Isso é especialmente importante nos primeiros meses.
+A amamentação em livre demanda significa oferecer o seio sempre que o bebê demonstrar sinais de fome, sem seguir horários rígidos. Isso é especialmente importante nos primeiros meses.
 
 ### Benefícios da livre demanda
 
@@ -15,7 +15,7 @@ A amamentação em livre demanda significa oferecer o peito sempre que o bebê d
 
 - Movimentos de sucção
 - Levar as mãos à boca
-- Virar a cabeça procurando o peito (reflexo de busca)
+- Virar a cabeça procurando o seio (reflexo de busca)
 - Agitação
 - Choro (sinal tardio de fome)
 
@@ -45,7 +45,7 @@ A amamentação em livre demanda significa oferecer o peito sempre que o bebê d
 
 - Boca bem aberta, como um bocejo
 - Lábio inferior virado para fora
-- Queixo encostado no peito
+- Queixo encostado no seio
 - Aréola mais visível acima da boca
 - Bochechas cheias durante a sucção
 - Som de deglutição audível
@@ -62,7 +62,7 @@ A amamentação em livre demanda significa oferecer o peito sempre que o bebê d
 Não existe tempo "certo". O importante é:
 
 - Deixar o bebê esvaziar uma mama antes de oferecer a outra
-- Bebê satisfeito solta o peito sozinho
+- Bebê satisfeito solta o seio sozinho
 - Alternar o seio inicial a cada mamada
 
 ### Por que alternar?

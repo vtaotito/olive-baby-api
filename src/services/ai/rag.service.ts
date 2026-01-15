@@ -299,7 +299,7 @@ export class RAGService {
 
     const tagKeywords: Record<string, string[]> = {
       sono: ['sono', 'dormir', 'soneca', 'noite', 'acordar', 'despertar'],
-      amamentacao: ['amamentação', 'mamar', 'peito', 'mama', 'leite materno', 'amamentar'],
+      amamentacao: ['amamentação', 'mamar', 'seio', 'mama', 'leite materno', 'amamentar'],
       alimentacao: ['alimentação', 'comida', 'papinha', 'introdução alimentar', 'comer'],
       fralda: ['fralda', 'xixi', 'cocô', 'evacuação', 'diurese'],
       desenvolvimento: ['desenvolvimento', 'marco', 'milestone', 'crescimento', 'motor'],
@@ -324,7 +324,7 @@ export class RAGService {
 
     const topics: Record<string, string[]> = {
       'Sono do bebê': ['sono', 'dormir', 'soneca', 'noite'],
-      'Amamentação': ['amamentação', 'mamar', 'peito', 'leite'],
+      'Amamentação': ['amamentação', 'mamar', 'seio', 'leite'],
       'Alimentação complementar': ['introdução alimentar', 'papinha', 'BLW'],
       'Fraldas e higiene': ['fralda', 'banho', 'higiene'],
       'Desenvolvimento motor': ['engatinhar', 'sentar', 'andar', 'motor'],

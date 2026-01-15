@@ -20,6 +20,21 @@ export class BabyInviteController {
         throw AppError.unauthorized();
       }
 
+      // Check Premium feature for multiple caregivers
+      const { EntitlementsService } = await import('../core/entitlements');
+      const entitlements = await EntitlementsService.getUserEntitlements(req.user.userId);
+      
+      if (!entitlements.features.multiCaregivers) {
+        throw AppError.forbidden(
+          'Compartilhamento com múltiplos cuidadores está disponível apenas no plano Premium',
+          {
+            errorCode: 'PLAN_UPGRADE_REQUIRED',
+            feature: 'multiCaregivers',
+            currentPlan: entitlements.planType,
+          }
+        );
+      }
+
       const babyId = parseInt(req.params.babyId, 10);
       const { emailInvited, memberType, role, invitedName, message, expiresInHours } = req.body;
 

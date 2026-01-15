@@ -110,6 +110,32 @@ export class AIController {
         throw AppError.forbidden('Usuário não é um cuidador');
       }
 
+      // Check user entitlements for AI chat limit
+      const { EntitlementsService } = await import('../core/entitlements');
+      const entitlements = await EntitlementsService.getUserEntitlements(userId);
+      
+      // For Free users: limit to 2 interactions per session
+      if (!entitlements.features.aiChat) {
+        // Count user messages in this session
+        const userMessageCount = await prisma.aiChatMessage.count({
+          where: {
+            sessionId,
+            role: 'user',
+          },
+        });
+
+        if (userMessageCount >= 2) {
+          throw AppError.forbidden(
+            'Você atingiu o limite de 2 interações no plano Gratuito. Assine o Premium para conversas ilimitadas.',
+            {
+              errorCode: 'PLAN_UPGRADE_REQUIRED',
+              feature: 'aiChat',
+              currentPlan: entitlements.planType,
+            }
+          );
+        }
+      }
+
       const result = await aiChatService.sendMessage({
         userId,
         caregiverId: caregiver.id,
@@ -185,6 +211,21 @@ export class AIController {
       const babyId = Number(req.params.babyId);
       const { includeRead, includeDismissed, refresh } = req.query;
 
+      // Check Premium feature for advanced insights
+      const { EntitlementsService } = await import('../core/entitlements');
+      const entitlements = await EntitlementsService.getUserEntitlements(userId);
+      
+      if (!entitlements.features.advancedInsights) {
+        throw AppError.forbidden(
+          'Insights Avançados estão disponíveis apenas no plano Premium',
+          {
+            errorCode: 'PLAN_UPGRADE_REQUIRED',
+            feature: 'advancedInsights',
+            currentPlan: entitlements.planType,
+          }
+        );
+      }
+
       // Get caregiver ID
       const caregiver = await prisma.caregiver.findFirst({
         where: { userId },
@@ -221,6 +262,21 @@ export class AIController {
     try {
       const userId = req.user!.userId;
       const babyId = Number(req.params.babyId);
+
+      // Check Premium feature for advanced insights
+      const { EntitlementsService } = await import('../core/entitlements');
+      const entitlements = await EntitlementsService.getUserEntitlements(userId);
+      
+      if (!entitlements.features.advancedInsights) {
+        throw AppError.forbidden(
+          'Insights Avançados estão disponíveis apenas no plano Premium',
+          {
+            errorCode: 'PLAN_UPGRADE_REQUIRED',
+            feature: 'advancedInsights',
+            currentPlan: entitlements.planType,
+          }
+        );
+      }
 
       // Get caregiver ID
       const caregiver = await prisma.caregiver.findFirst({

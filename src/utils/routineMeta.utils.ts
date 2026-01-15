@@ -169,7 +169,7 @@ export function validateRoutineMeta(
       }
       
       if (meta.feedingType === 'breast' && !meta.breastSide) {
-        errors.push('Lado do peito é obrigatório para amamentação');
+        errors.push('Lado do seio é obrigatório para amamentação');
       }
       
       if (meta.complement === 'yes') {

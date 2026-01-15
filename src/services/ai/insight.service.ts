@@ -362,7 +362,7 @@ export class AIInsightService {
             title: 'Intervalo longo sem mamada',
             explanation: `Faz ${hoursSinceLastFeeding}h desde a última mamada registrada.`,
             recommendation: babyAgeMonths < 1
-              ? 'Para recém-nascidos, é importante oferecer o peito com frequência. Se o bebê está dormindo muito, pode ser necessário acordá-lo.'
+              ? 'Para recém-nascidos, é importante oferecer o seio com frequência. Se o bebê está dormindo muito, pode ser necessário acordá-lo.'
               : 'Observe se o bebê está mostrando sinais de fome.',
             data: { hoursSinceLastFeeding, maxHours },
           };
