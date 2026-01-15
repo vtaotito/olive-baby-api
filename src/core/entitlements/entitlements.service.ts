@@ -88,6 +88,26 @@ export class EntitlementsService {
       isSubscriptionActive = subscriptionStatus === 'ACTIVE' || subscriptionStatus === 'TRIALING';
     }
 
+    // For Premium users with ACTIVE subscription, always consider active (even if plan.isActive is false)
+    // This handles edge cases where plan might be marked inactive but subscription is valid
+    const isActive = user.plan.type === PlanType.PREMIUM && isSubscriptionActive
+      ? true // Premium with active subscription is always active
+      : isSubscriptionActive && user.plan.isActive; // Otherwise check both
+
+    // Log for debugging
+    const logger = (await import('../../config/logger')).logger;
+    logger.info('User entitlements calculated', {
+      userId: user.id,
+      planType: user.plan.type,
+      planName: user.plan.name,
+      planIsActive: user.plan.isActive,
+      hasSubscription: !!user.subscription,
+      subscriptionStatus,
+      isSubscriptionActive,
+      isActive,
+      features,
+    });
+
     return {
       userId: user.id,
       planId: user.plan.id,
@@ -96,7 +116,7 @@ export class EntitlementsService {
       subscriptionStatus,
       limits,
       features,
-      isActive: isSubscriptionActive && user.plan.isActive,
+      isActive,
     };
   }
 
@@ -118,9 +138,9 @@ export class EntitlementsService {
   static async assertCan(userId: number, feature: FeatureKey): Promise<void> {
     const entitlements = await this.getUserEntitlements(userId);
 
-    // Debug logging (can be removed in production)
+    // Debug logging for troubleshooting
     const logger = (await import('../../config/logger')).logger;
-    logger.debug('Feature check', {
+    logger.info('Feature check', {
       userId,
       feature,
       planType: entitlements.planType,
@@ -129,6 +149,7 @@ export class EntitlementsService {
       subscriptionStatus: entitlements.subscriptionStatus,
       featureEnabled: entitlements.features[feature],
       allFeatures: entitlements.features,
+      planId: entitlements.planId,
     });
 
     if (!entitlements.isActive) {
