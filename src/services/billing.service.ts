@@ -241,9 +241,13 @@ export class BillingService {
       throw AppError.notFound('Usuário não encontrado');
     }
 
+    // Use EntitlementsService to get correct features (with Premium defaults)
+    const { EntitlementsService } = await import('../core/entitlements');
+    const entitlements = await EntitlementsService.getUserEntitlements(userId);
+
     return {
-      plan: user.plan?.type || 'FREE',
-      planName: user.plan?.name || 'Gratuito',
+      plan: entitlements.planType,
+      planName: entitlements.planName,
       subscription: user.subscription ? {
         status: user.subscription.status,
         interval: user.subscription.interval,
@@ -252,8 +256,8 @@ export class BillingService {
         cancelAtPeriodEnd: user.subscription.cancelAtPeriodEnd,
       } : null,
       stripeCustomerId: user.stripeCustomerId,
-      features: user.plan?.features || {},
-      limits: user.plan?.limits || {},
+      features: entitlements.features, // Use features from EntitlementsService (guaranteed complete)
+      limits: entitlements.limits, // Use limits from EntitlementsService
     };
   }
 
