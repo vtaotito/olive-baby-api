@@ -100,9 +100,23 @@ export class BillingController {
     try {
       const status = await BillingService.getBillingStatus(req.user!.userId);
 
+      // Add debug info for troubleshooting
+      const { EntitlementsService } = await import('../core/entitlements');
+      const entitlements = await EntitlementsService.getUserEntitlements(req.user!.userId);
+
       res.json({
         success: true,
-        data: status,
+        data: {
+          ...status,
+          // Include full entitlements for debugging
+          _debug: {
+            canUseVaccines: entitlements.features.vaccines,
+            isActive: entitlements.isActive,
+            planType: entitlements.planType,
+            subscriptionStatus: entitlements.subscriptionStatus,
+            allFeatures: entitlements.features,
+          },
+        },
       });
     } catch (error) {
       next(error);
