@@ -418,3 +418,83 @@ export async function getBabyInvites(
 
   return invites;
 }
+
+/**
+ * Lista convites pendentes recebidos pelo usuário (pelo email)
+ */
+export async function getPendingInvitesForUser(userEmail: string) {
+  const invites = await prisma.babyInvite.findMany({
+    where: { 
+      emailInvited: {
+        equals: userEmail,
+        mode: 'insensitive'
+      },
+      status: BabyInviteStatus.PENDING,
+      expiresAt: {
+        gt: new Date()
+      }
+    },
+    include: {
+      baby: {
+        select: {
+          id: true,
+          name: true,
+          birthDate: true
+        }
+      },
+      createdBy: {
+        select: {
+          id: true,
+          email: true,
+          caregiver: {
+            select: {
+              fullName: true
+            }
+          }
+        }
+      }
+    },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  return invites;
+}
+
+/**
+ * Rejeita um convite
+ */
+export async function rejectInvite(
+  inviteId: number,
+  userEmail: string
+) {
+  const invite = await prisma.babyInvite.findUnique({
+    where: { id: inviteId }
+  });
+
+  if (!invite) {
+    throw AppError.notFound('Convite não encontrado');
+  }
+
+  // Verificar se o convite é para este email
+  if (invite.emailInvited.toLowerCase() !== userEmail.toLowerCase()) {
+    throw AppError.forbidden('Este convite foi enviado para outro email');
+  }
+
+  if (invite.status !== BabyInviteStatus.PENDING) {
+    throw AppError.badRequest('Este convite não está mais pendente');
+  }
+
+  const rejectedInvite = await prisma.babyInvite.update({
+    where: { id: inviteId },
+    data: { status: BabyInviteStatus.REVOKED }
+  });
+
+  logger.info('invite_rejected', {
+    event: 'invite_rejected',
+    inviteId,
+    babyId: invite.babyId,
+    userEmail: userEmail.substring(0, 3) + '***',
+  });
+
+  return rejectedInvite;
+}

@@ -222,6 +222,23 @@ function wrapTemplate(content: string, title: string): string {
 // ==========================================
 
 /**
+ * Mapeamento de roles de profissionais para português brasileiro (email de ativação)
+ */
+const professionalRoleLabelsMap: Record<string, string> = {
+  PEDIATRICIAN: 'Pediatra',
+  OBGYN: 'Obstetra/Ginecologista',
+  LACTATION_CONSULTANT: 'Consultora de Amamentação',
+  NUTRITIONIST: 'Nutricionista',
+  PSYCHOLOGIST: 'Psicólogo(a)',
+  SPEECH_THERAPIST: 'Fonoaudiólogo(a)',
+  PHYSIOTHERAPIST: 'Fisioterapeuta',
+  OCCUPATIONAL_THERAPIST: 'Terapeuta Ocupacional',
+  NANNY: 'Babá',
+  CAREGIVER: 'Cuidador(a)',
+  OTHER: 'Outro Profissional',
+};
+
+/**
  * Envia convite para profissional
  */
 export async function sendProfessionalInvite(data: {
@@ -233,6 +250,7 @@ export async function sendProfessionalInvite(data: {
   role: string;
 }) {
   const activationUrl = `${env.FRONTEND_URL}/activate-professional?token=${data.inviteToken}`;
+  const roleLabel = professionalRoleLabelsMap[data.role] || data.role;
 
   const content = `
     <div class="header">
@@ -243,7 +261,7 @@ export async function sendProfessionalInvite(data: {
       <p>Olá <strong>${data.professionalName}</strong>,</p>
       <p><strong>${data.caregiverName}</strong> convidou você para acompanhar o desenvolvimento de <strong>${data.babyName}</strong> na plataforma Olive Baby.</p>
       <div class="info-box">
-        <p><strong>Papel:</strong> ${data.role}</p>
+        <p><strong>Papel:</strong> ${roleLabel}</p>
       </div>
       <p>Clique no botão abaixo para ativar sua conta:</p>
       <div style="text-align: center;">
@@ -268,6 +286,30 @@ export async function sendProfessionalInvite(data: {
 }
 
 /**
+ * Mapeamento de roles para português brasileiro
+ */
+const roleLabelsMap: Record<string, string> = {
+  // Parents
+  OWNER_PARENT_1: 'Responsável Principal',
+  OWNER_PARENT_2: 'Responsável Principal',
+  // Family
+  FAMILY_VIEWER: 'Familiar (Somente visualização)',
+  FAMILY_EDITOR: 'Familiar (Pode editar)',
+  // Professionals
+  PEDIATRICIAN: 'Pediatra',
+  OBGYN: 'Obstetra/Ginecologista',
+  LACTATION_CONSULTANT: 'Consultora de Amamentação',
+  NUTRITIONIST: 'Nutricionista',
+  PSYCHOLOGIST: 'Psicólogo(a)',
+  SPEECH_THERAPIST: 'Fonoaudiólogo(a)',
+  PHYSIOTHERAPIST: 'Fisioterapeuta',
+  OCCUPATIONAL_THERAPIST: 'Terapeuta Ocupacional',
+  NANNY: 'Babá',
+  CAREGIVER: 'Cuidador(a)',
+  OTHER: 'Outro Profissional',
+};
+
+/**
  * Envia convite para pais/familiares/profissionais acessarem um bebê
  */
 export async function sendBabyInvite(data: {
@@ -287,17 +329,15 @@ export async function sendBabyInvite(data: {
   switch (data.memberType) {
     case 'PARENT':
       inviteTypeLabel = 'Responsável';
-      roleLabel = data.role === 'OWNER_PARENT_1' || data.role === 'OWNER_PARENT_2' 
-        ? 'Responsável Principal' 
-        : 'Responsável';
+      roleLabel = roleLabelsMap[data.role] || 'Responsável';
       break;
     case 'FAMILY':
       inviteTypeLabel = 'Familiar';
-      roleLabel = data.role === 'FAMILY_EDITOR' ? 'Familiar (Pode editar)' : 'Familiar (Somente visualização)';
+      roleLabel = roleLabelsMap[data.role] || 'Familiar';
       break;
     case 'PROFESSIONAL':
       inviteTypeLabel = 'Profissional';
-      roleLabel = data.role;
+      roleLabel = roleLabelsMap[data.role] || data.role;
       break;
   }
 

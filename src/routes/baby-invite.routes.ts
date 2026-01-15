@@ -8,11 +8,20 @@ const router = Router();
 // POST /invites/verify-token - Verifica token (público, não requer autenticação)
 router.post('/invites/verify-token', BabyInviteController.verifyToken);
 
-// POST /invites/accept - Aceita convite (requer autenticação)
+// POST /invites/accept - Aceita convite por token (requer autenticação)
 router.post('/invites/accept', authMiddleware, BabyInviteController.acceptInvite);
 
 // Rotas que requerem autenticação
 router.use(authMiddleware);
+
+// GET /invites/pending - Lista convites pendentes recebidos pelo usuário logado
+router.get('/invites/pending', BabyInviteController.getPendingInvites);
+
+// POST /invites/:inviteId/accept - Aceita convite por ID (para usuários já logados)
+router.post('/invites/:inviteId/accept', BabyInviteController.acceptInviteById);
+
+// POST /invites/:inviteId/reject - Rejeita convite recebido
+router.post('/invites/:inviteId/reject', BabyInviteController.rejectInvite);
 
 // POST /babies/:babyId/invites - Cria convite
 router.post('/babies/:babyId/invites', BabyInviteController.createInvite);
