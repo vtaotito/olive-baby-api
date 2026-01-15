@@ -31,6 +31,7 @@ export interface VerifyInviteTokenResult {
     name: string;
     birthDate: Date;
   };
+  userExists: boolean;
 }
 
 /**
@@ -180,6 +181,12 @@ export async function verifyInviteToken(token: string): Promise<VerifyInviteToke
     throw AppError.badRequest('Este convite expirou');
   }
 
+  // Verificar se o usuário já existe no sistema
+  const existingUser = await prisma.user.findUnique({
+    where: { email: invite.emailInvited.toLowerCase() },
+    select: { id: true }
+  });
+
   return {
     invite: {
       id: invite.id,
@@ -190,7 +197,8 @@ export async function verifyInviteToken(token: string): Promise<VerifyInviteToke
       invitedName: invite.invitedName || undefined,
       message: invite.message || undefined
     },
-    baby: invite.baby
+    baby: invite.baby,
+    userExists: !!existingUser
   };
 }
 
