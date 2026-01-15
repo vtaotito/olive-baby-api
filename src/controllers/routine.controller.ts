@@ -5,6 +5,7 @@ import { RoutineService } from '../services/routine.service';
 import { CaregiverService } from '../services/caregiver.service';
 import { AuthenticatedRequest, ApiResponse } from '../types';
 import { AppError } from '../utils/errors/AppError';
+import { hasBabyAccess } from '../utils/helpers/baby-permission.helper';
 
 // Schemas de validação
 export const createRoutineSchema = z.object({
@@ -520,14 +521,19 @@ export class RoutineController {
         throw AppError.unauthorized();
       }
 
-      const caregiverId = await RoutineController.getCaregiverId(req.user.userId);
       const babyId = parseInt(req.query.babyId as string, 10);
 
       if (!babyId) {
         throw AppError.badRequest('babyId é obrigatório');
       }
 
-      const openRoutines = await RoutineService.getAllOpenRoutines(caregiverId, babyId);
+      // Verificar acesso ao bebê (cuidador ou profissional)
+      const hasAccess = await hasBabyAccess(req.user.userId, babyId);
+      if (!hasAccess) {
+        throw AppError.forbidden('Você não tem acesso a este bebê');
+      }
+
+      const openRoutines = await RoutineService.getAllOpenRoutinesByBaby(babyId);
 
       res.status(200).json({
         success: true,

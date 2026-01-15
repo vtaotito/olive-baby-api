@@ -143,6 +143,49 @@ export class GrowthService {
     };
   }
 
+  /**
+   * Lista registros de crescimento por babyId (sem verificação de acesso)
+   * Usado quando acesso já foi verificado no controller (ex: profissionais)
+   */
+  static async listByBabyId(
+    babyId: number,
+    filter: ListGrowthFilter = {},
+    page = 1,
+    limit = 50
+  ) {
+    const where: any = { babyId };
+
+    if (filter.startDate || filter.endDate) {
+      where.measuredAt = {};
+      if (filter.startDate) {
+        where.measuredAt.gte = filter.startDate;
+      }
+      if (filter.endDate) {
+        where.measuredAt.lte = filter.endDate;
+      }
+    }
+
+    const [records, total] = await Promise.all([
+      prisma.growth.findMany({
+        where,
+        orderBy: { measuredAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.growth.count({ where }),
+    ]);
+
+    return {
+      data: records,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
   static async update(id: number, caregiverId: number, input: UpdateGrowthInput) {
     // Verificar acesso
     await this.getById(id, caregiverId);

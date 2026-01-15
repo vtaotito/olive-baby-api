@@ -5,6 +5,7 @@ import { StatsService } from '../services/stats.service';
 import { CaregiverService } from '../services/caregiver.service';
 import { AuthenticatedRequest, ApiResponse } from '../types';
 import { AppError } from '../utils/errors/AppError';
+import { hasBabyAccess } from '../utils/helpers/baby-permission.helper';
 
 // Schemas de validação
 export const statsQuerySchema = z.object({
@@ -12,9 +13,13 @@ export const statsQuerySchema = z.object({
 });
 
 export class StatsController {
-  private static async getCaregiverId(userId: number): Promise<number> {
-    const caregiver = await CaregiverService.getByUserId(userId);
-    return caregiver.id;
+  private static async getCaregiverIdOrNull(userId: number): Promise<number | null> {
+    try {
+      const caregiver = await CaregiverService.getByUserId(userId);
+      return caregiver.id;
+    } catch {
+      return null;
+    }
   }
 
   static async getStats(
@@ -30,6 +35,12 @@ export class StatsController {
       const babyId = parseInt(req.params.babyId, 10);
       const range = (req.query.range as string) || '7d';
       
+      // Verificar acesso ao bebê (cuidador ou profissional)
+      const hasAccess = await hasBabyAccess(req.user.userId, babyId);
+      if (!hasAccess) {
+        throw AppError.forbidden('Você não tem acesso a este bebê');
+      }
+      
       // Converter range para dias
       const daysMap: Record<string, number> = {
         '24h': 1,
@@ -40,8 +51,9 @@ export class StatsController {
       };
       const days = daysMap[range] || 7;
 
-      const caregiverId = await StatsController.getCaregiverId(req.user.userId);
-      const stats = await StatsService.getStats(caregiverId, babyId, days);
+      // Para profissionais, usamos o babyId diretamente no serviço
+      const caregiverId = await StatsController.getCaregiverIdOrNull(req.user.userId);
+      const stats = await StatsService.getStatsByBaby(babyId, days, caregiverId);
 
       // Mapear para formato esperado pelo frontend
       const mappedStats = {
@@ -92,6 +104,12 @@ export class StatsController {
       const babyId = parseInt(req.params.babyId, 10);
       const range = (req.query.range as string) || '7d';
       
+      // Verificar acesso ao bebê (cuidador ou profissional)
+      const hasAccess = await hasBabyAccess(req.user.userId, babyId);
+      if (!hasAccess) {
+        throw AppError.forbidden('Você não tem acesso a este bebê');
+      }
+      
       const daysMap: Record<string, number> = {
         '7d': 7,
         '14d': 14,
@@ -99,8 +117,8 @@ export class StatsController {
       };
       const days = daysMap[range] || 7;
 
-      const caregiverId = await StatsController.getCaregiverId(req.user.userId);
-      const volumeData = await StatsService.getVolumeByType(caregiverId, babyId, days);
+      const caregiverId = await StatsController.getCaregiverIdOrNull(req.user.userId);
+      const volumeData = await StatsService.getVolumeByTypeBaby(babyId, days, caregiverId);
 
       res.status(200).json({
         success: true,
@@ -125,6 +143,12 @@ export class StatsController {
       const babyId = parseInt(req.params.babyId, 10);
       const range = (req.query.range as string) || '7d';
       
+      // Verificar acesso ao bebê (cuidador ou profissional)
+      const hasAccess = await hasBabyAccess(req.user.userId, babyId);
+      if (!hasAccess) {
+        throw AppError.forbidden('Você não tem acesso a este bebê');
+      }
+      
       const daysMap: Record<string, number> = {
         '7d': 7,
         '14d': 14,
@@ -132,8 +156,8 @@ export class StatsController {
       };
       const days = daysMap[range] || 7;
 
-      const caregiverId = await StatsController.getCaregiverId(req.user.userId);
-      const stats = await StatsService.getStats(caregiverId, babyId, days);
+      const caregiverId = await StatsController.getCaregiverIdOrNull(req.user.userId);
+      const stats = await StatsService.getStatsByBaby(babyId, days, caregiverId);
 
       // Formatar dados para gráficos do frontend
       const historyData = {

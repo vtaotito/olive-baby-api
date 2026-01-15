@@ -144,6 +144,44 @@ export class MilestoneService {
     };
   }
 
+  /**
+   * Lista marcos por babyId (sem verificação de acesso)
+   * Usado quando acesso já foi verificado no controller (ex: profissionais)
+   */
+  static async listByBabyId(babyId: number) {
+    // Buscar marcos registrados
+    const registeredMilestones = await prisma.milestone.findMany({
+      where: { babyId },
+      orderBy: [
+        { occurredOn: 'asc' },
+        { createdAt: 'asc' },
+      ],
+    });
+
+    // Criar lista com marcos pré-definidos + status de completude
+    const milestonesWithStatus = PREDEFINED_MILESTONES.map(predefined => {
+      const registered = registeredMilestones.find(m => m.milestoneKey === predefined.key);
+      return {
+        key: predefined.key,
+        label: predefined.label,
+        isCompleted: !!registered,
+        record: registered || null,
+      };
+    });
+
+    // Adicionar marcos customizados (key = 'other' ou não pré-definidos)
+    const customMilestones = registeredMilestones.filter(
+      m => !PREDEFINED_MILESTONES.some(p => p.key === m.milestoneKey)
+    );
+
+    return {
+      predefined: milestonesWithStatus,
+      custom: customMilestones,
+      totalCompleted: registeredMilestones.length,
+      totalPredefined: PREDEFINED_MILESTONES.length,
+    };
+  }
+
   static async update(id: number, caregiverId: number, input: UpdateMilestoneInput) {
     // Verificar acesso
     await this.getById(id, caregiverId);

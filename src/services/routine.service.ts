@@ -366,6 +366,14 @@ export class RoutineService {
       throw AppError.forbidden('Você não tem acesso a este bebê');
     }
 
+    return this.getAllOpenRoutinesByBaby(babyId);
+  }
+
+  /**
+   * Busca todas as rotinas abertas de um bebê (sem verificação de acesso)
+   * Usado quando acesso já foi verificado no controller (ex: profissionais)
+   */
+  static async getAllOpenRoutinesByBaby(babyId: number) {
     // Buscar todas as rotinas abertas em uma única query
     const openRoutines = await prisma.routineLog.findMany({
       where: {

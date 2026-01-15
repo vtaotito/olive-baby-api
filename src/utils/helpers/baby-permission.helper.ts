@@ -23,8 +23,10 @@ export async function isBabyOwner(userId: number, babyId: number): Promise<boole
 
 /**
  * Verifica se o usuário tem acesso ao bebê (qualquer role ativa)
+ * Inclui acesso via BabyMember (cuidadores) e Professional (profissionais de saúde)
  */
 export async function hasBabyAccess(userId: number, babyId: number): Promise<boolean> {
+  // Verificar acesso via BabyMember (cuidadores)
   const member = await prisma.babyMember.findFirst({
     where: {
       babyId,
@@ -33,7 +35,30 @@ export async function hasBabyAccess(userId: number, babyId: number): Promise<boo
     }
   });
   
-  return !!member;
+  if (member) {
+    return true;
+  }
+  
+  // Verificar acesso via Professional (profissionais de saúde)
+  const professional = await prisma.professional.findUnique({
+    where: { userId },
+    select: { id: true, status: true }
+  });
+  
+  if (professional && professional.status === 'ACTIVE') {
+    const babyProfessional = await prisma.babyProfessional.findFirst({
+      where: {
+        babyId,
+        professionalId: professional.id
+      }
+    });
+    
+    if (babyProfessional) {
+      return true;
+    }
+  }
+  
+  return false;
 }
 
 /**

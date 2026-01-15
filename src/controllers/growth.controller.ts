@@ -5,6 +5,7 @@ import { GrowthService } from '../services/growth.service';
 import { CaregiverService } from '../services/caregiver.service';
 import { AuthenticatedRequest, ApiResponse } from '../types';
 import { AppError } from '../utils/errors/AppError';
+import { hasBabyAccess } from '../utils/helpers/baby-permission.helper';
 
 // Helper para mapear dados do banco para o formato do frontend
 function mapGrowthToFrontend(record: any) {
@@ -122,11 +123,15 @@ export class GrowthController {
       }
 
       const babyId = parseInt(req.params.babyId, 10);
-      const caregiverId = await GrowthController.getCaregiverId(req.user.userId);
       const query = req.query as any;
 
-      const result = await GrowthService.listByBaby(
-        caregiverId,
+      // Verificar acesso ao bebê (cuidador ou profissional)
+      const hasAccess = await hasBabyAccess(req.user.userId, babyId);
+      if (!hasAccess) {
+        throw AppError.forbidden('Você não tem acesso a este bebê');
+      }
+
+      const result = await GrowthService.listByBabyId(
         babyId,
         {
           startDate: query.startDate,

@@ -5,6 +5,7 @@ import { MilestoneService } from '../services/milestone.service';
 import { CaregiverService } from '../services/caregiver.service';
 import { AuthenticatedRequest, ApiResponse } from '../types';
 import { AppError } from '../utils/errors/AppError';
+import { hasBabyAccess } from '../utils/helpers/baby-permission.helper';
 
 // Helper para mapear milestone para formato do frontend
 function mapMilestoneToFrontend(record: any, category?: string) {
@@ -136,8 +137,14 @@ export class MilestoneController {
       }
 
       const babyId = parseInt(req.params.babyId, 10);
-      const caregiverId = await MilestoneController.getCaregiverId(req.user.userId);
-      const result = await MilestoneService.listByBaby(caregiverId, babyId);
+      
+      // Verificar acesso ao bebê (cuidador ou profissional)
+      const hasAccess = await hasBabyAccess(req.user.userId, babyId);
+      if (!hasAccess) {
+        throw AppError.forbidden('Você não tem acesso a este bebê');
+      }
+      
+      const result = await MilestoneService.listByBabyId(babyId);
 
       // Converter para array simples no formato do frontend
       const milestones: any[] = [];
