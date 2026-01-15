@@ -246,8 +246,11 @@ export class BillingService {
     const entitlements = await EntitlementsService.getUserEntitlements(userId);
 
     return {
+      // Return both 'plan' and 'planType' for compatibility
       plan: entitlements.planType,
+      planType: entitlements.planType,
       planName: entitlements.planName,
+      isActive: entitlements.isActive,
       subscription: user.subscription ? {
         status: user.subscription.status,
         interval: user.subscription.interval,
