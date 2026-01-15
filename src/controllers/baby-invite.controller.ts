@@ -278,28 +278,33 @@ export class BabyInviteController {
       }));
 
       // Formatando convites de profissionais
-      const formattedProfessionalInvites = professionalInvites.map(prof => ({
-        id: prof.id,
-        inviteType: 'PROFESSIONAL' as const, // Para identificar o tipo no frontend
-        babyId: prof.babies[0]?.baby?.id || null,
-        babyName: prof.babies[0]?.baby?.name || 'Múltiplos bebês',
-        babyBirthDate: prof.babies[0]?.baby?.birthDate || null,
-        memberType: 'PROFESSIONAL' as const,
-        role: prof.babies[0]?.role || 'PEDIATRICIAN',
-        invitedName: prof.fullName,
-        message: null,
-        inviterEmail: prof.invitedBy?.email || null,
-        inviterName: prof.invitedBy?.caregiver?.fullName || prof.invitedBy?.email || 'Desconhecido',
-        expiresAt: prof.inviteExpiresAt,
-        createdAt: prof.createdAt,
-        // Campos específicos de profissional
-        specialty: prof.specialty,
-        allBabies: prof.babies.map(bp => ({
-          id: bp.baby.id,
-          name: bp.baby.name,
-          role: bp.role
-        }))
-      }));
+      const formattedProfessionalInvites = professionalInvites.map(prof => {
+        // Obtém o cuidador principal do primeiro bebê (quem fez o convite)
+        const primaryCaregiver = prof.babies[0]?.baby?.caregivers?.[0]?.caregiver;
+        
+        return {
+          id: prof.id,
+          inviteType: 'PROFESSIONAL' as const, // Para identificar o tipo no frontend
+          babyId: prof.babies[0]?.baby?.id || null,
+          babyName: prof.babies[0]?.baby?.name || 'Múltiplos bebês',
+          babyBirthDate: prof.babies[0]?.baby?.birthDate || null,
+          memberType: 'PROFESSIONAL' as const,
+          role: prof.babies[0]?.role || 'PEDIATRICIAN',
+          invitedName: prof.fullName,
+          message: null,
+          inviterEmail: primaryCaregiver?.user?.email || null,
+          inviterName: primaryCaregiver?.fullName || 'Responsável do bebê',
+          expiresAt: prof.inviteExpiresAt,
+          createdAt: prof.createdAt,
+          // Campos específicos de profissional
+          specialty: prof.specialty,
+          allBabies: prof.babies.map((bp: any) => ({
+            id: bp.baby.id,
+            name: bp.baby.name,
+            role: bp.role
+          }))
+        };
+      });
 
       // Combinar e ordenar por data de criação (mais recentes primeiro)
       const allInvites = [...formattedFamilyInvites, ...formattedProfessionalInvites]

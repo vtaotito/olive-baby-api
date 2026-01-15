@@ -488,18 +488,22 @@ export async function getPendingProfessionalInvitesForUser(userEmail: string) {
             select: {
               id: true,
               name: true,
-              birthDate: true
-            }
-          }
-        }
-      },
-      invitedBy: {
-        select: {
-          id: true,
-          email: true,
-          caregiver: {
-            select: {
-              fullName: true
+              birthDate: true,
+              caregivers: {
+                where: { isPrimary: true },
+                include: {
+                  caregiver: {
+                    select: {
+                      fullName: true,
+                      user: {
+                        select: {
+                          email: true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         }
