@@ -239,7 +239,7 @@ model Caregiver {
   id          Int       @id @default(autoincrement())
   userId      Int       @unique @map("user_id")
   fullName    String    @map("full_name")
-  cpf         String    @unique
+  cpf         String?   @unique // CPF opcional para permitir registros via convite
   phone       String?
   dateOfBirth DateTime? @map("date_of_birth")
   gender      Gender?
