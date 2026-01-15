@@ -179,18 +179,24 @@ export class BabyService {
   }
 
   /**
-   * Lista bebês de um usuário através de múltiplos caminhos (caregiver e babyMember)
+   * Lista bebês de um usuário através de múltiplos caminhos (caregiver, babyMember e professional)
    * Garante que sempre encontramos todos os bebês, mesmo que um caminho falhe
    */
   static async listByUser(userId: number) {
-    // Buscar caregiver do usuário
-    const caregiver = await prisma.caregiver.findUnique({
-      where: { userId },
-      select: { id: true },
-    });
+    // Buscar caregiver e professional do usuário em paralelo
+    const [caregiver, professional] = await Promise.all([
+      prisma.caregiver.findUnique({
+        where: { userId },
+        select: { id: true },
+      }),
+      prisma.professional.findUnique({
+        where: { userId },
+        select: { id: true, status: true },
+      }),
+    ]);
 
-    // Buscar bebês de ambas as fontes em paralelo
-    const [babiesFromCaregiver, babiesFromMember] = await Promise.all([
+    // Buscar bebês de todas as fontes em paralelo
+    const [babiesFromCaregiver, babiesFromMember, babiesFromProfessional] = await Promise.all([
       // Via CaregiverBaby (relação tradicional)
       caregiver
         ? prisma.baby.findMany({
@@ -244,10 +250,37 @@ export class BabyService {
           createdAt: 'asc',
         },
       }),
+      // Via BabyProfessional (profissionais de saúde)
+      professional && professional.status === 'ACTIVE'
+        ? prisma.baby.findMany({
+            where: {
+              professionals: {
+                some: {
+                  professionalId: professional.id,
+                },
+              },
+            },
+            include: {
+              caregivers: {
+                include: {
+                  caregiver: {
+                    select: {
+                      id: true,
+                      fullName: true,
+                    },
+                  },
+                },
+              },
+            },
+            orderBy: {
+              createdAt: 'asc',
+            },
+          })
+        : Promise.resolve([]),
     ]);
 
     // Combinar e remover duplicatas (por id)
-    const allBabies = [...babiesFromCaregiver, ...babiesFromMember];
+    const allBabies = [...babiesFromCaregiver, ...babiesFromMember, ...babiesFromProfessional];
     const uniqueBabies = allBabies.reduce((acc, baby) => {
       if (!acc.find((b) => b.id === baby.id)) {
         acc.push(baby);
