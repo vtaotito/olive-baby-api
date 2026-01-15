@@ -9,6 +9,7 @@ import {
   ResourceKey,
   DEFAULT_FREE_LIMITS,
   DEFAULT_FREE_FEATURES,
+  DEFAULT_PREMIUM_FEATURES,
   ENTITLEMENT_ERRORS,
   FEATURE_DISPLAY_NAMES,
   RESOURCE_DISPLAY_NAMES,
@@ -60,13 +61,32 @@ export class EntitlementsService {
 
     // Parse limits and features from JSON
     const limits = (user.plan.limits as unknown as PlanLimits) || DEFAULT_FREE_LIMITS;
-    const features = (user.plan.features as unknown as PlanFeatures) || DEFAULT_FREE_FEATURES;
+    let features = (user.plan.features as unknown as PlanFeatures) || DEFAULT_FREE_FEATURES;
+
+    // Ensure Premium plan has all Premium features enabled
+    // This handles cases where the plan JSONB might be missing some features
+    if (user.plan.type === PlanType.PREMIUM) {
+      features = {
+        ...DEFAULT_PREMIUM_FEATURES,
+        ...features, // Override with any custom features from DB
+      };
+    }
 
     // Check subscription status
     const subscriptionStatus = user.subscription?.status || null;
-    const isSubscriptionActive = !subscriptionStatus || 
-      subscriptionStatus === 'ACTIVE' || 
-      subscriptionStatus === 'TRIALING';
+    
+    // Determine if subscription is active
+    // For Premium users: if no subscription exists, consider active if plan is active
+    // If subscription exists, check its status
+    let isSubscriptionActive: boolean;
+    if (!user.subscription) {
+      // No subscription record - for Premium users, consider active if plan is active
+      // For Free users, always active
+      isSubscriptionActive = user.plan.type === PlanType.PREMIUM ? user.plan.isActive : true;
+    } else {
+      // Has subscription - check status
+      isSubscriptionActive = subscriptionStatus === 'ACTIVE' || subscriptionStatus === 'TRIALING';
+    }
 
     return {
       userId: user.id,
@@ -98,9 +118,24 @@ export class EntitlementsService {
   static async assertCan(userId: number, feature: FeatureKey): Promise<void> {
     const entitlements = await this.getUserEntitlements(userId);
 
+    // Debug logging (can be removed in production)
+    const logger = (await import('../../config/logger')).logger;
+    logger.debug('Feature check', {
+      userId,
+      feature,
+      planType: entitlements.planType,
+      planName: entitlements.planName,
+      isActive: entitlements.isActive,
+      subscriptionStatus: entitlements.subscriptionStatus,
+      featureEnabled: entitlements.features[feature],
+      allFeatures: entitlements.features,
+    });
+
     if (!entitlements.isActive) {
       throw AppError.forbidden('Sua assinatura não está ativa.', {
         errorCode: ENTITLEMENT_ERRORS.SUBSCRIPTION_INACTIVE,
+        planType: entitlements.planType,
+        subscriptionStatus: entitlements.subscriptionStatus,
       });
     }
 
@@ -114,6 +149,7 @@ export class EntitlementsService {
           featureName: FEATURE_DISPLAY_NAMES[feature],
           currentPlan: entitlements.planType,
           requiredPlan: 'PREMIUM',
+          allFeatures: entitlements.features,
         }
       );
     }
