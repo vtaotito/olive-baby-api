@@ -464,3 +464,138 @@ export async function getBabiesForProfessional(userId: number) {
     primaryCaregiver: bp.baby.caregivers[0]?.caregiver || null
   }));
 }
+
+/**
+ * Lista convites de profissionais pendentes para um email específico
+ */
+export async function getPendingProfessionalInvitesForUser(userEmail: string) {
+  // Busca profissionais com status INVITED (convite pendente) pelo email
+  const pendingInvites = await prisma.professional.findMany({
+    where: {
+      email: {
+        equals: userEmail,
+        mode: 'insensitive'
+      },
+      status: ProfessionalStatus.INVITED,
+      inviteExpiresAt: {
+        gt: new Date()
+      }
+    },
+    include: {
+      babies: {
+        include: {
+          baby: {
+            select: {
+              id: true,
+              name: true,
+              birthDate: true
+            }
+          }
+        }
+      },
+      invitedBy: {
+        select: {
+          id: true,
+          email: true,
+          caregiver: {
+            select: {
+              fullName: true
+            }
+          }
+        }
+      }
+    }
+  });
+
+  return pendingInvites;
+}
+
+/**
+ * Aceita convite de profissional pelo ID do Professional
+ */
+export async function acceptProfessionalInvite(professionalId: number, userEmail: string) {
+  const professional = await prisma.professional.findUnique({
+    where: { id: professionalId },
+    include: {
+      babies: {
+        include: {
+          baby: true
+        }
+      }
+    }
+  });
+
+  if (!professional) {
+    throw new AppError('Convite não encontrado', 404);
+  }
+
+  if (professional.email.toLowerCase() !== userEmail.toLowerCase()) {
+    throw new AppError('Este convite não pertence a você', 403);
+  }
+
+  if (professional.status !== ProfessionalStatus.INVITED) {
+    throw new AppError('Este convite já foi processado', 400);
+  }
+
+  if (professional.inviteExpiresAt && professional.inviteExpiresAt < new Date()) {
+    throw new AppError('Este convite expirou', 400);
+  }
+
+  // Buscar ou criar o usuário
+  let user = await prisma.user.findUnique({
+    where: { email: userEmail.toLowerCase() }
+  });
+
+  if (!user) {
+    throw new AppError('Você precisa criar uma conta primeiro usando o link de ativação no email', 400);
+  }
+
+  // Atualizar o profissional para ACTIVE e vincular ao usuário
+  const updatedProfessional = await prisma.professional.update({
+    where: { id: professionalId },
+    data: {
+      status: ProfessionalStatus.ACTIVE,
+      userId: user.id
+    },
+    include: {
+      babies: {
+        include: {
+          baby: true
+        }
+      }
+    }
+  });
+
+  return updatedProfessional;
+}
+
+/**
+ * Rejeita convite de profissional pelo ID do Professional
+ */
+export async function rejectProfessionalInvite(professionalId: number, userEmail: string) {
+  const professional = await prisma.professional.findUnique({
+    where: { id: professionalId }
+  });
+
+  if (!professional) {
+    throw new AppError('Convite não encontrado', 404);
+  }
+
+  if (professional.email.toLowerCase() !== userEmail.toLowerCase()) {
+    throw new AppError('Este convite não pertence a você', 403);
+  }
+
+  if (professional.status !== ProfessionalStatus.INVITED) {
+    throw new AppError('Este convite já foi processado', 400);
+  }
+
+  // Atualizar o profissional para BLOCKED (rejeitado)
+  const updatedProfessional = await prisma.professional.update({
+    where: { id: professionalId },
+    data: {
+      status: ProfessionalStatus.BLOCKED
+    }
+  });
+
+  return updatedProfessional;
+}

@@ -2,6 +2,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest, ApiResponse } from '../types';
 import * as babyInviteService from '../services/baby-invite.service';
+import * as professionalService from '../services/professional.service';
 import * as emailService from '../services/email.service';
 import { AppError } from '../utils/errors/AppError';
 
@@ -241,6 +242,7 @@ export class BabyInviteController {
   /**
    * GET /invites/pending
    * Lista convites pendentes recebidos pelo usuário logado
+   * Inclui tanto convites de familiares (BabyInvite) quanto de profissionais (Professional)
    */
   static async getPendingInvites(
     req: AuthenticatedRequest,
@@ -252,11 +254,16 @@ export class BabyInviteController {
         throw AppError.unauthorized();
       }
 
-      const invites = await babyInviteService.getPendingInvitesForUser(req.user.email);
+      // Buscar convites de familiares (BabyInvite)
+      const familyInvites = await babyInviteService.getPendingInvitesForUser(req.user.email);
 
-      // Formatando para o frontend
-      const formattedInvites = invites.map(invite => ({
+      // Buscar convites de profissionais (Professional)
+      const professionalInvites = await professionalService.getPendingProfessionalInvitesForUser(req.user.email);
+
+      // Formatando convites de familiares
+      const formattedFamilyInvites = familyInvites.map(invite => ({
         id: invite.id,
+        inviteType: 'FAMILY' as const, // Para identificar o tipo no frontend
         babyId: invite.babyId,
         babyName: invite.baby.name,
         babyBirthDate: invite.baby.birthDate,
@@ -270,9 +277,37 @@ export class BabyInviteController {
         createdAt: invite.createdAt,
       }));
 
+      // Formatando convites de profissionais
+      const formattedProfessionalInvites = professionalInvites.map(prof => ({
+        id: prof.id,
+        inviteType: 'PROFESSIONAL' as const, // Para identificar o tipo no frontend
+        babyId: prof.babies[0]?.baby?.id || null,
+        babyName: prof.babies[0]?.baby?.name || 'Múltiplos bebês',
+        babyBirthDate: prof.babies[0]?.baby?.birthDate || null,
+        memberType: 'PROFESSIONAL' as const,
+        role: prof.babies[0]?.role || 'PEDIATRICIAN',
+        invitedName: prof.fullName,
+        message: null,
+        inviterEmail: prof.invitedBy?.email || null,
+        inviterName: prof.invitedBy?.caregiver?.fullName || prof.invitedBy?.email || 'Desconhecido',
+        expiresAt: prof.inviteExpiresAt,
+        createdAt: prof.createdAt,
+        // Campos específicos de profissional
+        specialty: prof.specialty,
+        allBabies: prof.babies.map(bp => ({
+          id: bp.baby.id,
+          name: bp.baby.name,
+          role: bp.role
+        }))
+      }));
+
+      // Combinar e ordenar por data de criação (mais recentes primeiro)
+      const allInvites = [...formattedFamilyInvites, ...formattedProfessionalInvites]
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
       res.json({
         success: true,
-        data: formattedInvites
+        data: allInvites
       });
     } catch (error) {
       next(error);
@@ -281,7 +316,8 @@ export class BabyInviteController {
 
   /**
    * POST /invites/:inviteId/reject
-   * Rejeita um convite recebido
+   * Rejeita um convite recebido (família ou profissional)
+   * Query param: type=FAMILY|PROFESSIONAL (default: FAMILY)
    */
   static async rejectInvite(
     req: AuthenticatedRequest,
@@ -294,7 +330,13 @@ export class BabyInviteController {
       }
 
       const inviteId = parseInt(req.params.inviteId, 10);
-      await babyInviteService.rejectInvite(inviteId, req.user.email);
+      const inviteType = (req.query.type as string || req.body.inviteType || 'FAMILY').toUpperCase();
+
+      if (inviteType === 'PROFESSIONAL') {
+        await professionalService.rejectProfessionalInvite(inviteId, req.user.email);
+      } else {
+        await babyInviteService.rejectInvite(inviteId, req.user.email);
+      }
 
       res.json({
         success: true,
@@ -306,8 +348,9 @@ export class BabyInviteController {
   }
 
   /**
-   * POST /invites/:inviteId/accept-by-id
-   * Aceita um convite recebido (pelo ID, não pelo token)
+   * POST /invites/:inviteId/accept
+   * Aceita um convite recebido (pelo ID, família ou profissional)
+   * Query param: type=FAMILY|PROFESSIONAL (default: FAMILY)
    */
   static async acceptInviteById(
     req: AuthenticatedRequest,
@@ -320,8 +363,27 @@ export class BabyInviteController {
       }
 
       const inviteId = parseInt(req.params.inviteId, 10);
-      
-      // Buscar o convite para obter informações
+      const inviteType = (req.query.type as string || req.body.inviteType || 'FAMILY').toUpperCase();
+
+      // Se for convite de profissional, usar lógica específica
+      if (inviteType === 'PROFESSIONAL') {
+        const professional = await professionalService.acceptProfessionalInvite(inviteId, req.user.email);
+        
+        res.json({
+          success: true,
+          message: `Convite aceito! Você agora tem acesso aos bebês vinculados.`,
+          data: {
+            professionalId: professional.id,
+            babies: professional.babies.map(bp => ({
+              id: bp.baby.id,
+              name: bp.baby.name
+            }))
+          }
+        });
+        return;
+      }
+
+      // Lógica para convites de família (BabyInvite)
       const { prisma } = await import('../config/database');
       const invite = await prisma.babyInvite.findUnique({
         where: { id: inviteId },
@@ -347,7 +409,7 @@ export class BabyInviteController {
       }
 
       // Criar o vínculo diretamente
-      const { BabyMemberType, BabyMemberRole, BabyInviteStatus } = await import('@prisma/client');
+      const { BabyInviteStatus } = await import('@prisma/client');
       
       // Verificar se já existe vínculo ativo
       const existingMember = await prisma.babyMember.findUnique({
