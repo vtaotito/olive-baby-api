@@ -10,7 +10,7 @@ export const registerSchema = z.object({
   email: z.string().email('Email inválido'),
   password: z.string().min(8, 'Senha deve ter no mínimo 8 caracteres'),
   fullName: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
-  cpf: z.string().min(11, 'CPF inválido'),
+  cpf: z.string().optional().transform(val => val && val.length >= 11 ? val : undefined), // CPF opcional (pode ser preenchido depois no perfil)
   phone: z.string().optional(),
   dateOfBirth: z.string().datetime().optional().transform(val => val ? new Date(val) : undefined),
   gender: z.enum(['FEMALE', 'MALE', 'OTHER', 'NOT_INFORMED']).optional(),
