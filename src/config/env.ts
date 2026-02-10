@@ -64,6 +64,16 @@ const envSchema = z.object({
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PUBLISHABLE_KEY: z.string().optional(),
+
+  // Push Notifications - VAPID (Web Push)
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default('mailto:contato@oliecare.cloud'),
+
+  // Push Notifications - Firebase (FCM for Android/iOS)
+  FIREBASE_PROJECT_ID: z.string().optional(),
+  FIREBASE_CLIENT_EMAIL: z.string().optional(),
+  FIREBASE_PRIVATE_KEY: z.string().optional().transform(val => val ? val.replace(/\\n/g, '\n') : undefined),
 });
 
 const parsed = envSchema.safeParse(process.env);

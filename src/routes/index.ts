@@ -20,6 +20,7 @@ import billingRoutes from './billing.routes';
 import adminAiRoutes from './admin-ai.routes';
 import onboardingRoutes from './onboarding.routes';
 import notificationRoutes from './notification.routes';
+import deviceTokenRoutes from './device-token.routes';
 
 const router = Router();
 
@@ -50,6 +51,7 @@ router.use('/billing', billingRoutes);
 router.use('/admin/ai', adminAiRoutes);
 router.use('/onboarding', onboardingRoutes);
 router.use('/notifications', notificationRoutes);
+router.use('/device-tokens', deviceTokenRoutes);
 
 // IMPORTANTE: Rotas públicas de convite DEVEM vir ANTES de rotas com authMiddleware global
 // Isso garante que /invites/verify-token seja acessível sem autenticação

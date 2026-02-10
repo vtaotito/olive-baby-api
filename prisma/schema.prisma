@@ -227,6 +227,7 @@ model User {
   settings             UserSettings?
   auditEvents          AuditEvent[]
   notifications        Notification[]
+  deviceTokens         DeviceToken[]
 
   @@index([planId])
   @@index([status])
@@ -852,6 +853,41 @@ model Notification {
   @@index([userId, type])
   @@index([createdAt])
   @@map("notifications")
+}
+
+// ==========================================
+// DEVICE TOKEN MODEL (Push Notifications)
+// ==========================================
+
+enum DevicePlatform {
+  WEB       // PWA / Browser Push (Web Push API)
+  ANDROID   // FCM (Firebase Cloud Messaging)
+  IOS       // APNs (Apple Push Notification service)
+  EXPO      // Expo Push Notifications
+}
+
+model DeviceToken {
+  id            Int             @id @default(autoincrement())
+  userId        Int             @map("user_id")
+  token         String          // FCM/APNS/Expo/Web push subscription JSON (text, sem limite)
+  platform      DevicePlatform
+  deviceName    String?         @map("device_name") @db.VarChar(100)   // e.g., "iPhone 15", "Chrome Desktop"
+  deviceModel   String?         @map("device_model") @db.VarChar(100)  // e.g., "iPhone15,2", "SM-S918B"
+  osVersion     String?         @map("os_version") @db.VarChar(50)     // e.g., "iOS 18.1", "Android 15"
+  appVersion    String?         @map("app_version") @db.VarChar(20)    // e.g., "1.0.0"
+  isActive      Boolean         @default(true) @map("is_active")
+  lastUsedAt    DateTime        @default(now()) @map("last_used_at")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, token])
+  @@index([userId])
+  @@index([userId, isActive])
+  @@index([platform])
+  @@index([token])
+  @@map("device_tokens")
 }
 
 // ==========================================
