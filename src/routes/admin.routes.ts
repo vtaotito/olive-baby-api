@@ -15,6 +15,9 @@ import {
   cohortsQuerySchema,
   paywallQuerySchema,
   errorsQuerySchema,
+  dailySummaryQuerySchema,
+  weeklySummaryQuerySchema,
+  opsSummaryQuerySchema,
   testEmailSchema,
 } from '../controllers/admin.controller';
 
@@ -130,6 +133,31 @@ router.get(
   '/errors',
   validateQuery(errorsQuerySchema),
   AdminController.getErrorsAnalytics
+);
+
+// ==========================================
+// Summary for n8n/Slack
+// ==========================================
+
+// GET /admin/summary/daily - Last X hours
+router.get(
+  '/summary/daily',
+  validateQuery(dailySummaryQuerySchema),
+  AdminController.getDailySummary
+);
+
+// GET /admin/summary/weekly - Last N weeks
+router.get(
+  '/summary/weekly',
+  validateQuery(weeklySummaryQuerySchema),
+  AdminController.getWeeklySummary
+);
+
+// GET /admin/summary/ops - Ops summary for last X hours
+router.get(
+  '/summary/ops',
+  validateQuery(opsSummaryQuerySchema),
+  AdminController.getOpsSummary
 );
 
 // ==========================================

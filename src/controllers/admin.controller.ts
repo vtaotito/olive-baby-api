@@ -3,6 +3,7 @@ import { Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { AdminService } from '../services/admin.service';
 import { AdminAnalyticsService } from '../services/adminAnalytics.service';
+import { AdminSummaryService } from '../services/adminSummary.service';
 import { ApiEventsService } from '../services/apiEvents.service';
 import { sendWelcomeEmail, sendAlert } from '../services/email.service';
 import { AuthenticatedRequest, ApiResponse } from '../types';
@@ -73,6 +74,29 @@ export const dataQualityQuerySchema = z.object({
 export const errorsQuerySchema = z.object({
   range: z.enum(['7d', '30d']).optional().default('7d'),
 });
+
+const summaryWindowQuerySchema = z
+  .object({
+    window: z.string().regex(/^\d{1,3}h$/).optional().default('24h'),
+  })
+  .refine(
+    data => {
+      const hours = Number(data.window?.replace('h', ''));
+      return Number.isInteger(hours) && hours >= 1 && hours <= 168;
+    },
+    {
+      path: ['window'],
+      message: 'window deve ser entre 1h e 168h',
+    }
+  );
+
+export const dailySummaryQuerySchema = summaryWindowQuerySchema;
+
+export const weeklySummaryQuerySchema = z.object({
+  weeks: z.coerce.number().int().min(1).max(12).optional().default(1),
+});
+
+export const opsSummaryQuerySchema = summaryWindowQuerySchema;
 
 export const testEmailSchema = z.object({
   email: z.string().email(),
@@ -465,6 +489,76 @@ export class AdminController {
       res.json({
         success: true,
         data: analytics,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // ==========================================
+  // Summary Endpoints (n8n)
+  // ==========================================
+
+  /**
+   * GET /admin/summary/daily
+   * Summary for last X hours
+   */
+  static async getDailySummary(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { window } = dailySummaryQuerySchema.parse(req.query);
+      const summary = await AdminSummaryService.getDailySummary(window);
+
+      res.json({
+        success: true,
+        data: summary,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /admin/summary/weekly
+   * Summary for last N weeks
+   */
+  static async getWeeklySummary(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { weeks } = weeklySummaryQuerySchema.parse(req.query);
+      const summary = await AdminSummaryService.getWeeklySummary(weeks);
+
+      res.json({
+        success: true,
+        data: summary,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /admin/summary/ops
+   * Ops summary for last X hours
+   */
+  static async getOpsSummary(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { window } = opsSummaryQuerySchema.parse(req.query);
+      const summary = await AdminSummaryService.getOpsSummary(window);
+
+      res.json({
+        success: true,
+        data: summary,
       });
     } catch (error) {
       next(error);
