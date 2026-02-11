@@ -34,6 +34,8 @@ app.use(cors({
         'https://oliecare.cloud',
         'https://www.oliecare.cloud',
         'https://adm.oliecare.cloud',
+        'https://prof.oliecare.cloud',
+        'http://prof.oliecare.cloud',
         'http://localhost:3000',
         'http://localhost:5173',
       ],
