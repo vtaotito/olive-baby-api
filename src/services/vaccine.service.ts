@@ -325,6 +325,131 @@ export class VaccineService {
   }
 
   /**
+   * Obtém resumo das vacinas do bebê (sem verificação de cuidador).
+   * Usado quando acesso já foi verificado no controller (ex: profissionais via hasBabyAccess).
+   */
+  static async getVaccineSummaryByBabyId(babyId: number): Promise<VaccineSummary> {
+    const records = await prisma.babyVaccineRecord.findMany({
+      where: { babyId },
+      orderBy: { recommendedAt: 'asc' },
+    });
+
+    const today = startOfDay(new Date());
+    
+    let applied = 0;
+    let pending = 0;
+    let overdue = 0;
+    let skipped = 0;
+
+    const nextVaccines: VaccineSummary['nextVaccines'] = [];
+
+    for (const record of records) {
+      const isOverdue = isVaccineOverdue(record.recommendedAt, record.status);
+
+      switch (record.status) {
+        case VaccineStatus.APPLIED:
+          applied++;
+          break;
+        case VaccineStatus.SKIPPED:
+          skipped++;
+          break;
+        case VaccineStatus.PENDING:
+          if (isOverdue) {
+            overdue++;
+          } else {
+            pending++;
+          }
+          break;
+      }
+
+      if (record.status === VaccineStatus.PENDING && nextVaccines.length < 5) {
+        const daysUntil = differenceInDays(record.recommendedAt, today);
+        nextVaccines.push({
+          id: record.id,
+          vaccineName: record.vaccineName,
+          doseLabel: record.doseLabel,
+          recommendedAt: record.recommendedAt,
+          daysUntil,
+          isOverdue,
+        });
+      }
+    }
+
+    return {
+      total: records.length,
+      applied,
+      pending,
+      overdue,
+      skipped,
+      nextVaccines,
+    };
+  }
+
+  /**
+   * Lista timeline de vacinas do bebê (sem verificação de cuidador).
+   * Usado quando acesso já foi verificado no controller (ex: profissionais via hasBabyAccess).
+   */
+  static async getVaccineTimelineByBabyId(
+    babyId: number,
+    options?: {
+      status?: VaccineStatus;
+      source?: VaccineCalendarSource;
+    }
+  ) {
+    const where: any = { babyId };
+    
+    if (options?.status) {
+      where.status = options.status;
+    }
+    if (options?.source) {
+      where.source = options.source;
+    }
+
+    const records = await prisma.babyVaccineRecord.findMany({
+      where,
+      orderBy: [
+        { recommendedAt: 'asc' },
+        { vaccineName: 'asc' },
+      ],
+    });
+
+    const today = startOfDay(new Date());
+
+    return records.map(record => ({
+      ...record,
+      isOverdue: isVaccineOverdue(record.recommendedAt, record.status),
+      daysUntil: differenceInDays(record.recommendedAt, today),
+    }));
+  }
+
+  /**
+   * Obtém um registro específico por babyId (sem verificação de cuidador).
+   * Usado quando acesso já foi verificado no controller.
+   */
+  static async getVaccineRecordByBabyId(babyId: number, recordId: number) {
+    const record = await prisma.babyVaccineRecord.findFirst({
+      where: {
+        id: recordId,
+        babyId,
+      },
+      include: {
+        baby: {
+          select: { id: true, name: true, birthDate: true },
+        },
+      },
+    });
+
+    if (!record) {
+      throw AppError.notFound('Registro de vacina não encontrado');
+    }
+
+    return {
+      ...record,
+      isOverdue: isVaccineOverdue(record.recommendedAt, record.status),
+    };
+  }
+
+  /**
    * Obtém um registro específico
    */
   static async getVaccineRecordById(caregiverId: number, babyId: number, recordId: number) {

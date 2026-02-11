@@ -162,6 +162,61 @@ export class RoutineService {
     };
   }
 
+  /**
+   * Lista rotinas por babyId sem verificação de cuidador.
+   * Usado quando acesso já foi verificado no controller (ex: profissionais via hasBabyAccess).
+   */
+  static async listByBabyId(
+    babyId: number,
+    filter: Omit<ListRoutinesFilter, 'babyId'>,
+    page = 1,
+    limit = 50
+  ) {
+    const where: any = { babyId };
+
+    if (filter.routineType) {
+      where.routineType = filter.routineType;
+    }
+
+    if (filter.startDate || filter.endDate) {
+      where.startTime = {};
+      if (filter.startDate) {
+        where.startTime.gte = filter.startDate;
+      }
+      if (filter.endDate) {
+        where.startTime.lte = filter.endDate;
+      }
+    }
+
+    const [routines, total] = await Promise.all([
+      prisma.routineLog.findMany({
+        where,
+        include: {
+          baby: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: { startTime: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.routineLog.count({ where }),
+    ]);
+
+    return {
+      data: routines,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
   static async update(id: number, caregiverId: number, input: UpdateRoutineInput) {
     // Verificar acesso e obter rotina existente
     const existingRoutine = await this.getById(id, caregiverId);

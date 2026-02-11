@@ -307,8 +307,14 @@ export class MilestoneController {
       }
 
       const babyId = parseInt(req.params.babyId, 10);
-      const caregiverId = await MilestoneController.getCaregiverId(req.user.userId);
-      const progress = await MilestoneService.getProgress(caregiverId, babyId);
+      
+      // Verificar acesso ao bebê (cuidador OU profissional)
+      const hasAccess = await hasBabyAccess(req.user.userId, babyId);
+      if (!hasAccess) {
+        throw AppError.forbidden('Você não tem acesso a este bebê');
+      }
+
+      const progress = await MilestoneService.getProgressByBabyId(babyId);
 
       res.status(200).json({
         success: true,

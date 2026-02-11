@@ -5,6 +5,7 @@ import { VaccineService } from '../services/vaccine.service';
 import { AuthenticatedRequest } from '../types';
 import { AppError } from '../utils/errors/AppError';
 import { VaccineStatus, VaccineCalendarSource } from '@prisma/client';
+import { hasBabyAccess } from '../utils/helpers/baby-permission.helper';
 
 // ==========================================
 // Validation Schemas
@@ -155,6 +156,7 @@ export class VaccineController {
   /**
    * GET /babies/:babyId/vaccines/summary
    * Obtém resumo das vacinas do bebê
+   * Suporta acesso de cuidadores E profissionais de saúde
    */
   static async getSummary(
     req: AuthenticatedRequest,
@@ -169,18 +171,13 @@ export class VaccineController {
         throw AppError.badRequest('ID do bebê inválido');
       }
 
-      const caregiver = await import('../config/database').then(m => 
-        m.prisma.caregiver.findUnique({
-          where: { userId },
-          select: { id: true },
-        })
-      );
-
-      if (!caregiver) {
-        throw AppError.forbidden('Usuário não é um cuidador');
+      // Verificar acesso ao bebê (cuidador OU profissional)
+      const hasAccess = await hasBabyAccess(userId, babyId);
+      if (!hasAccess) {
+        throw AppError.forbidden('Você não tem acesso a este bebê');
       }
 
-      const summary = await VaccineService.getVaccineSummary(caregiver.id, babyId);
+      const summary = await VaccineService.getVaccineSummaryByBabyId(babyId);
 
       res.json({
         success: true,
@@ -195,6 +192,7 @@ export class VaccineController {
   /**
    * GET /babies/:babyId/vaccines/timeline
    * Lista todas as vacinas do bebê em formato timeline
+   * Suporta acesso de cuidadores E profissionais de saúde
    */
   static async getTimeline(
     req: AuthenticatedRequest,
@@ -209,21 +207,16 @@ export class VaccineController {
         throw AppError.badRequest('ID do bebê inválido');
       }
 
-      const caregiver = await import('../config/database').then(m => 
-        m.prisma.caregiver.findUnique({
-          where: { userId },
-          select: { id: true },
-        })
-      );
-
-      if (!caregiver) {
-        throw AppError.forbidden('Usuário não é um cuidador');
+      // Verificar acesso ao bebê (cuidador OU profissional)
+      const hasAccess = await hasBabyAccess(userId, babyId);
+      if (!hasAccess) {
+        throw AppError.forbidden('Você não tem acesso a este bebê');
       }
 
       const status = req.query.status as VaccineStatus | undefined;
       const source = req.query.source as VaccineCalendarSource | undefined;
 
-      const timeline = await VaccineService.getVaccineTimeline(caregiver.id, babyId, {
+      const timeline = await VaccineService.getVaccineTimelineByBabyId(babyId, {
         status,
         source,
       });
@@ -241,6 +234,7 @@ export class VaccineController {
   /**
    * GET /babies/:babyId/vaccines/record/:id
    * Obtém detalhes de um registro específico
+   * Suporta acesso de cuidadores E profissionais de saúde
    */
   static async getRecord(
     req: AuthenticatedRequest,
@@ -256,18 +250,13 @@ export class VaccineController {
         throw AppError.badRequest('ID inválido');
       }
 
-      const caregiver = await import('../config/database').then(m => 
-        m.prisma.caregiver.findUnique({
-          where: { userId },
-          select: { id: true },
-        })
-      );
-
-      if (!caregiver) {
-        throw AppError.forbidden('Usuário não é um cuidador');
+      // Verificar acesso ao bebê (cuidador OU profissional)
+      const hasAccess = await hasBabyAccess(userId, babyId);
+      if (!hasAccess) {
+        throw AppError.forbidden('Você não tem acesso a este bebê');
       }
 
-      const record = await VaccineService.getVaccineRecordById(caregiver.id, babyId, recordId);
+      const record = await VaccineService.getVaccineRecordByBabyId(babyId, recordId);
 
       res.json({
         success: true,

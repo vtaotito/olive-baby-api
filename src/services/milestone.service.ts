@@ -264,6 +264,14 @@ export class MilestoneService {
       throw AppError.forbidden('Você não tem acesso a este bebê');
     }
 
+    return this.getProgressByBabyId(babyId);
+  }
+
+  /**
+   * Obtém progresso de marcos por babyId (sem verificação de cuidador).
+   * Usado quando acesso já foi verificado no controller (ex: profissionais via hasBabyAccess).
+   */
+  static async getProgressByBabyId(babyId: number) {
     const completed = await prisma.milestone.count({
       where: { babyId },
     });

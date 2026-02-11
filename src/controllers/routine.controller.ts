@@ -121,6 +121,7 @@ export class RoutineController {
   }
 
   // Lista rotinas de um bebê específico (usando babyId como path param)
+  // Suporta tanto cuidadores quanto profissionais de saúde
   static async listByBaby(
     req: AuthenticatedRequest,
     res: Response<ApiResponse>,
@@ -131,9 +132,14 @@ export class RoutineController {
         throw AppError.unauthorized();
       }
 
-      const caregiverId = await RoutineController.getCaregiverId(req.user.userId);
       const babyId = parseInt(req.params.babyId, 10);
       const query = req.query as any;
+
+      // Verificar acesso ao bebê (cuidador OU profissional)
+      const hasAccess = await hasBabyAccess(req.user.userId, babyId);
+      if (!hasAccess) {
+        throw AppError.forbidden('Você não tem acesso a este bebê');
+      }
 
       // Converter parâmetros de query
       let startDate: Date | undefined;
@@ -153,10 +159,10 @@ export class RoutineController {
       const page = query.page ? parseInt(query.page, 10) : 1;
       const limit = query.limit ? parseInt(query.limit, 10) : 50;
       
-      const result = await RoutineService.list(
-        caregiverId,
+      // Usar listByBabyId que não requer caregiverId (acesso já validado acima)
+      const result = await RoutineService.listByBabyId(
+        babyId,
         {
-          babyId,
           routineType: routineType as any,
           startDate,
           endDate,

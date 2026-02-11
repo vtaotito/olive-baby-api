@@ -4,8 +4,13 @@ import { EntitlementsService, AuditService, FeatureKey, ResourceKey } from '../c
 import { AuthenticatedRequest } from '../types';
 import { AppError } from '../utils/errors/AppError';
 
+// Roles que são profissionais de saúde - bypass de feature checks
+const PROFESSIONAL_ROLES = ['PEDIATRICIAN', 'SPECIALIST'];
+
 /**
- * Middleware to check if user has access to a feature
+ * Middleware to check if user has access to a feature.
+ * Profissionais de saúde (PEDIATRICIAN, SPECIALIST) têm bypass automático
+ * pois acessam dados de pacientes e não dependem de plano pago.
  */
 export function requireFeature(feature: FeatureKey) {
   return async (
@@ -16,6 +21,11 @@ export function requireFeature(feature: FeatureKey) {
     try {
       if (!req.user?.userId) {
         throw AppError.unauthorized('Não autenticado');
+      }
+
+      // Profissionais de saúde têm acesso a todas as features de visualização
+      if (req.user.role && PROFESSIONAL_ROLES.includes(req.user.role)) {
+        return next();
       }
 
       await EntitlementsService.assertCan(req.user.userId, feature);
