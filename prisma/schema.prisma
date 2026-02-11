@@ -338,6 +338,7 @@ model Professional {
   medicalCertificates MedicalCertificate[]
   schedules          ProfessionalSchedule[]
   scheduleExceptions ScheduleException[]
+  patientInvites     PatientInvite[]
 
   @@map("professionals")
 }
@@ -1231,4 +1232,35 @@ model MedicalCertificate {
   @@index([babyId])
   @@index([professionalId])
   @@map("medical_certificates")
+}
+
+// ─── Patient Invites (professional → patient) ───────────────
+
+enum PatientInviteStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  CANCELLED
+}
+
+model PatientInvite {
+  id               Int                  @id @default(autoincrement())
+  professionalId   Int                  @map("professional_id")
+  patientName      String               @map("patient_name")
+  email            String
+  phone            String?
+  babyName         String?              @map("baby_name")
+  message          String?              @db.Text
+  token            String               @unique @db.VarChar(64)
+  status           PatientInviteStatus  @default(PENDING)
+  expiresAt        DateTime             @map("expires_at")
+  createdAt        DateTime             @default(now()) @map("created_at")
+  acceptedAt       DateTime?            @map("accepted_at")
+
+  professional     Professional         @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@index([professionalId])
+  @@index([email])
+  @@index([token])
+  @@map("patient_invites")
 }

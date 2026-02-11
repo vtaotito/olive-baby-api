@@ -603,5 +603,89 @@ export async function sendSubscriptionCancelled(data: {
   });
 }
 
+/**
+ * Envia convite de paciente (profissional → paciente/cuidador)
+ * Email informativo sobre o OlieCare com link para cadastro
+ */
+export async function sendPatientInviteEmail(data: {
+  patientEmail: string;
+  patientName: string;
+  professionalName: string;
+  professionalSpecialty: string;
+  professionalCRM?: string;
+  babyName?: string;
+  message?: string;
+  inviteToken: string;
+}) {
+  const registerUrl = `${env.FRONTEND_URL}/register?ref=invite&token=${data.inviteToken}`;
+  const specialtyLabel = professionalRoleLabelsMap[data.professionalSpecialty] || data.professionalSpecialty;
+
+  const content = `
+    <div class="header">
+      <div class="logo">🌿</div>
+      <h2>Convite para o OlieCare</h2>
+      <p style="margin: 5px 0 0; font-size: 14px; opacity: 0.9;">Acompanhamento inteligente do desenvolvimento do seu bebê</p>
+    </div>
+    <div class="content">
+      <p>Olá <strong>${data.patientName}</strong>,</p>
+      <p>O(a) <strong>${specialtyLabel}</strong> <strong>${data.professionalName}</strong>${data.professionalCRM ? ` (${data.professionalCRM})` : ''} convidou você para utilizar o <strong>OlieCare</strong>${data.babyName ? ` para acompanhar o desenvolvimento de <strong>${data.babyName}</strong>` : ''}.</p>
+
+      ${data.message ? `
+        <div class="message-box">
+          <p style="margin: 0; font-style: italic;">"${data.message}"</p>
+          <p style="margin: 8px 0 0; font-size: 12px; color: #666;">— ${data.professionalName}</p>
+        </div>
+      ` : ''}
+
+      <div class="info-box">
+        <p style="margin: 0 0 10px; font-weight: 600; font-size: 15px;">📱 O que é o OlieCare?</p>
+        <p style="margin: 0 0 12px; font-size: 14px;">O OlieCare é uma plataforma completa para acompanhar o desenvolvimento do seu bebê, criando uma conexão direta entre você e os profissionais de saúde.</p>
+        <ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 2;">
+          <li>📊 <strong>Registro de rotinas</strong> — alimentação, sono, fraldas e banho</li>
+          <li>📈 <strong>Curvas de crescimento</strong> — peso, comprimento e perímetro cefálico com referências da OMS</li>
+          <li>🏆 <strong>Marcos de desenvolvimento</strong> — acompanhe cada conquista do seu bebê</li>
+          <li>💉 <strong>Carteira de vacinação</strong> — controle completo com alertas</li>
+          <li>👨‍⚕️ <strong>Portal do profissional</strong> — seu médico acompanha tudo em tempo real</li>
+          <li>🤖 <strong>Assistente com IA</strong> — tire dúvidas sobre o dia a dia do bebê</li>
+          <li>📋 <strong>Consultas e receitas</strong> — histórico médico completo e organizado</li>
+        </ul>
+      </div>
+
+      <p style="font-size: 15px;">Crie sua conta gratuitamente e comece a acompanhar o desenvolvimento do seu bebê:</p>
+
+      <div style="text-align: center; margin: 25px 0;">
+        <a href="${registerUrl}" class="button" style="font-size: 16px; padding: 16px 36px;">Criar minha conta grátis</a>
+      </div>
+
+      <p style="font-size: 12px; color: #666; word-break: break-all;">Ou copie este link: ${registerUrl}</p>
+
+      <div style="background: #f0f9f3; border-radius: 8px; padding: 15px; margin: 20px 0; text-align: center;">
+        <p style="margin: 0; font-size: 13px; color: #4a7c59;">
+          🔒 Seus dados são protegidos e só são compartilhados com os profissionais que você autorizar.
+        </p>
+      </div>
+
+      <div class="warning">
+        <strong>⚠️ Importante:</strong> Este convite expira em 30 dias.
+      </div>
+    </div>
+  `;
+
+  const success = await sendEmail({
+    to: data.patientEmail,
+    subject: `${data.professionalName} convidou você para o OlieCare 🌿`,
+    html: wrapTemplate(content, 'Convite OlieCare'),
+  });
+
+  if (!success) {
+    throw new Error('Failed to send patient invite email');
+  }
+
+  logger.info('Patient invite email sent', {
+    email: data.patientEmail.substring(0, 3) + '***',
+    professional: data.professionalName,
+  });
+}
+
 // Export for testing
 export { sendEmail, mailerSend };
