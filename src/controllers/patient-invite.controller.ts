@@ -13,7 +13,7 @@ import { logger } from '../config/logger';
  * Helper: get professional ID from authenticated user
  */
 async function getProfessionalId(req: Request): Promise<number | null> {
-  const userId = (req as any).user?.id;
+  const userId = (req as any).user?.userId;
   if (!userId) return null;
   const prof = await prisma.professional.findUnique({
     where: { userId },
