@@ -33,6 +33,7 @@ app.use(cors({
         env.FRONTEND_URL,
         'https://oliecare.cloud',
         'https://www.oliecare.cloud',
+        'https://adm.oliecare.cloud',
         'http://localhost:3000',
         'http://localhost:5173',
       ],
