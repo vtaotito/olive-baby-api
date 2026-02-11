@@ -21,6 +21,14 @@ import adminAiRoutes from './admin-ai.routes';
 import onboardingRoutes from './onboarding.routes';
 import notificationRoutes from './notification.routes';
 import deviceTokenRoutes from './device-token.routes';
+import clinicRoutes from './clinic.routes';
+import appointmentRoutes from './appointment.routes';
+import {
+  babyClinicalVisitRouter,
+} from './clinical-visit.routes';
+import { babyPrescriptionRouter } from './prescription.routes';
+import { babyMedicalCertificateRouter } from './medical-certificate.routes';
+import { babyClinicalInfoRouter } from './baby-clinical-info.routes';
 
 const router = Router();
 
@@ -52,6 +60,8 @@ router.use('/admin/ai', adminAiRoutes);
 router.use('/onboarding', onboardingRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/device-tokens', deviceTokenRoutes);
+router.use('/clinics', clinicRoutes);
+router.use('/appointments', appointmentRoutes);
 
 // IMPORTANTE: Rotas públicas de convite DEVEM vir ANTES de rotas com authMiddleware global
 // Isso garante que /invites/verify-token seja acessível sem autenticação
@@ -60,6 +70,10 @@ router.use('/', babyInviteRoutes); // Rotas: /invites/* (públicas) e /babies/:b
 // Baby-scoped routes (nested under /babies/:babyId/)
 // IMPORTANTE: Registrar rotas específicas ANTES das rotas genéricas de /babies
 router.use('/babies/:babyId/professionals', babyProfessionalRouter);
+router.use('/babies/:babyId/clinical-info', babyClinicalInfoRouter);
+router.use('/babies/:babyId/visits', babyClinicalVisitRouter);
+router.use('/babies/:babyId/prescriptions', babyPrescriptionRouter);
+router.use('/babies/:babyId/certificates', babyMedicalCertificateRouter);
 router.use('/babies/:babyId/growth', babyGrowthRouter);
 router.use('/babies/:babyId/milestones', babyMilestoneRouter);
 router.use('/babies/:babyId/vaccines', babyVaccineRouter);

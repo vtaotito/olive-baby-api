@@ -105,6 +105,12 @@ enum BabyInviteStatus {
 enum PlanType {
   FREE
   PREMIUM
+  PROFESSIONAL_BASIC
+  PROFESSIONAL_ADVANCED
+  PROFESSIONAL_PRO
+  CLINIC_STARTER
+  CLINIC_GROWTH
+  CLINIC_ENTERPRISE
 }
 
 enum SubscriptionStatus {
@@ -260,6 +266,7 @@ model Baby {
   id               Int       @id @default(autoincrement())
   name             String
   birthDate        DateTime  @map("birth_date")
+  gender           Gender?   @default(NOT_INFORMED)
   city             String?
   state            String?   @db.Char(2)
   country          String    @default("BR") @db.Char(2)
@@ -279,6 +286,11 @@ model Baby {
   chatSessions     AiChatSession[]
   insights         AiInsight[]
   vaccineRecords   BabyVaccineRecord[]
+  clinicalInfo     BabyClinicalInfo?
+  clinicalVisits   ClinicalVisit[]
+  appointments     Appointment[]
+  prescriptions    Prescription[]
+  medicalCertificates MedicalCertificate[]
 
   @@map("babies")
 }
@@ -319,6 +331,13 @@ model Professional {
   
   user               User?               @relation(fields: [userId], references: [id])
   babies             BabyProfessional[]
+  clinicProfessionals ClinicProfessional[]
+  clinicalVisits     ClinicalVisit[]
+  appointments       Appointment[]
+  prescriptions      Prescription[]
+  medicalCertificates MedicalCertificate[]
+  schedules          ProfessionalSchedule[]
+  scheduleExceptions ScheduleException[]
 
   @@map("professionals")
 }
@@ -662,6 +681,7 @@ model Plan {
   
   users                  User[]
   subscriptions          Subscription[]
+  clinicSubscriptions    ClinicSubscription[]
 
   @@index([stripeProductId])
   @@map("plans")
@@ -948,4 +968,267 @@ model BabyVaccineRecord {
   @@index([babyId, vaccineKey])
   @@index([babyId, status])
   @@map("baby_vaccine_records")
+}
+
+// ==========================================
+// CLINIC & PROFESSIONAL PLATFORM MODELS
+// ==========================================
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  CHECKED_IN
+  IN_PROGRESS
+  COMPLETED
+  NO_SHOW
+  CANCELLED
+}
+
+enum AppointmentType {
+  CONSULTA_ROTINA
+  RETORNO
+  VACINA
+  URGENCIA
+  TELEMEDICINA
+  OUTRO
+}
+
+enum VisitType {
+  CONSULTA_ROTINA
+  RETORNO
+  URGENCIA
+  VACINA
+  OUTRO
+}
+
+model Clinic {
+  id            Int       @id @default(autoincrement())
+  name          String
+  slug          String    @unique @db.VarChar(100)
+  cnpj          String?   @unique @db.VarChar(18)
+  email         String?
+  phone         String?
+  address       String?
+  city          String?
+  state         String?   @db.Char(2)
+  country       String    @default("BR") @db.Char(2)
+  logoUrl       String?   @map("logo_url") @db.VarChar(500)
+  primaryColor  String?   @map("primary_color") @db.VarChar(7)
+  faviconUrl    String?   @map("favicon_url") @db.VarChar(500)
+  supportEmail  String?   @map("support_email") @db.VarChar(255)
+  isActive      Boolean   @default(true) @map("is_active")
+  stripeCustomerId String? @map("stripe_customer_id") @db.VarChar(255)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  professionals    ClinicProfessional[]
+  clinicSubscription ClinicSubscription?
+  schedules        ProfessionalSchedule[]
+  scheduleExceptions ScheduleException[]
+  clinicalVisits   ClinicalVisit[]
+  appointments     Appointment[]
+
+  @@index([slug])
+  @@map("clinics")
+}
+
+model ClinicProfessional {
+  id             Int       @id @default(autoincrement())
+  clinicId       Int       @map("clinic_id")
+  professionalId Int       @map("professional_id")
+  role           String    @db.VarChar(20) // OWNER, ADMIN, MEMBER
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  clinic         Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, professionalId])
+  @@index([clinicId])
+  @@index([professionalId])
+  @@map("clinic_professionals")
+}
+
+model ClinicSubscription {
+  id                    Int                 @id @default(autoincrement())
+  clinicId               Int                 @unique @map("clinic_id")
+  planId                Int                 @map("plan_id")
+  status                SubscriptionStatus  @default(ACTIVE)
+  stripeSubscriptionId  String?             @unique @map("stripe_subscription_id") @db.VarChar(255)
+  stripePriceId         String?             @map("stripe_price_id") @db.VarChar(255)
+  interval              BillingInterval     @default(MONTHLY)
+  quantity              Int                 @default(1) // licenças/profissionais
+  currentPeriodStart    DateTime?           @map("current_period_start")
+  currentPeriodEnd      DateTime?           @map("current_period_end")
+  trialEndsAt           DateTime?           @map("trial_ends_at")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+
+  clinic                Clinic              @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  plan                  Plan                @relation(fields: [planId], references: [id])
+
+  @@map("clinic_subscriptions")
+}
+
+model BabyClinicalInfo {
+  id               Int       @id @default(autoincrement())
+  babyId           Int       @unique @map("baby_id")
+  allergies        Json?     @default("[]") @db.JsonB
+  chronicConditions Json?    @default("[]") @map("chronic_conditions") @db.JsonB
+  medications      Json?     @default("[]") @db.JsonB
+  familyHistory    String?   @map("family_history") @db.Text
+  feedingNotes     String?   @map("feeding_notes") @db.Text
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  baby             Baby      @relation(fields: [babyId], references: [id], onDelete: Cascade)
+
+  @@map("baby_clinical_info")
+}
+
+model ClinicalVisit {
+  id                  Int       @id @default(autoincrement())
+  babyId              Int       @map("baby_id")
+  professionalId      Int       @map("professional_id")
+  clinicId            Int?      @map("clinic_id")
+  visitDate           DateTime  @map("visit_date")
+  visitType           VisitType @map("visit_type")
+  chiefComplaint      String?   @map("chief_complaint") @db.Text
+  history             String?   @db.Text
+  physicalExam        String?   @map("physical_exam") @db.Text
+  assessment          String?   @db.Text
+  plan                String?   @db.Text
+  weightKg            Decimal?  @map("weight_kg") @db.Decimal(5, 2)
+  heightCm            Decimal?  @map("height_cm") @db.Decimal(5, 2)
+  headCircumferenceCm Decimal?  @map("head_circumference_cm") @db.Decimal(5, 2)
+  nextVisitDate       DateTime? @map("next_visit_date") @db.Date
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  baby                Baby      @relation(fields: [babyId], references: [id], onDelete: Cascade)
+  professional        Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  clinic              Clinic?   @relation(fields: [clinicId], references: [id])
+  prescriptions       Prescription[]
+  appointments        Appointment[]
+
+  @@index([babyId])
+  @@index([professionalId])
+  @@index([clinicId])
+  @@index([visitDate])
+  @@map("clinical_visits")
+}
+
+model ProfessionalSchedule {
+  id             Int       @id @default(autoincrement())
+  professionalId Int       @map("professional_id")
+  clinicId       Int?      @map("clinic_id")
+  dayOfWeek      Int       @map("day_of_week") // 0=Dom, 1=Seg, ..., 6=Sáb
+  startTime      String    @map("start_time") @db.VarChar(5)
+  endTime        String    @map("end_time") @db.VarChar(5)
+  slotDuration   Int       @default(30) @map("slot_duration")
+  isActive       Boolean   @default(true) @map("is_active")
+  validFrom      DateTime? @map("valid_from") @db.Date
+  validUntil     DateTime? @map("valid_until") @db.Date
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  clinic         Clinic?   @relation(fields: [clinicId], references: [id])
+
+  @@index([professionalId])
+  @@index([clinicId])
+  @@index([dayOfWeek])
+  @@map("professional_schedules")
+}
+
+model ScheduleException {
+  id             Int       @id @default(autoincrement())
+  professionalId Int       @map("professional_id")
+  clinicId       Int?      @map("clinic_id")
+  exceptionDate  DateTime  @map("exception_date") @db.Date
+  type           String    @db.VarChar(20) // BLOCKED, REDUCED_HOURS, HOLIDAY
+  startTime      String?   @map("start_time") @db.VarChar(5)
+  endTime        String?   @map("end_time") @db.VarChar(5)
+  reason         String?   @db.VarChar(255)
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  clinic         Clinic?   @relation(fields: [clinicId], references: [id])
+
+  @@index([professionalId])
+  @@index([clinicId])
+  @@index([exceptionDate])
+  @@map("schedule_exceptions")
+}
+
+model Appointment {
+  id                 Int       @id @default(autoincrement())
+  babyId             Int       @map("baby_id")
+  professionalId     Int       @map("professional_id")
+  clinicId           Int?      @map("clinic_id")
+  visitId            Int?      @map("visit_id")
+  startAt            DateTime  @map("start_at")
+  endAt              DateTime  @map("end_at")
+  durationMinutes    Int       @default(30) @map("duration_minutes")
+  type               AppointmentType @default(CONSULTA_ROTINA)
+  status             AppointmentStatus @default(SCHEDULED)
+  title              String?   @db.VarChar(255)
+  notes              String?   @db.Text
+  cancellationReason String?   @map("cancellation_reason") @db.VarChar(255)
+  cancelledAt        DateTime? @map("cancelled_at")
+  bookedByUserId     Int?      @map("booked_by_user_id")
+  source             String?   @db.VarChar(50)
+  reminderSentAt     DateTime? @map("reminder_sent_at")
+  confirmedAt       DateTime? @map("confirmed_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  baby               Baby      @relation(fields: [babyId], references: [id], onDelete: Cascade)
+  professional       Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  clinic             Clinic?   @relation(fields: [clinicId], references: [id])
+  visit              ClinicalVisit? @relation(fields: [visitId], references: [id])
+
+  @@index([babyId])
+  @@index([professionalId])
+  @@index([clinicId])
+  @@index([startAt])
+  @@index([status])
+  @@map("appointments")
+}
+
+model Prescription {
+  id               Int       @id @default(autoincrement())
+  babyId           Int       @map("baby_id")
+  professionalId   Int       @map("professional_id")
+  visitId          Int?      @map("visit_id")
+  prescriptionDate DateTime  @map("prescription_date")
+  validUntil       DateTime? @map("valid_until")
+  items            Json      @db.JsonB
+  instructions     String?   @db.Text
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  baby             Baby      @relation(fields: [babyId], references: [id], onDelete: Cascade)
+  professional     Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  visit            ClinicalVisit? @relation(fields: [visitId], references: [id])
+
+  @@index([babyId])
+  @@index([professionalId])
+  @@map("prescriptions")
+}
+
+model MedicalCertificate {
+  id         Int       @id @default(autoincrement())
+  babyId     Int       @map("baby_id")
+  professionalId Int   @map("professional_id")
+  type       String    @db.VarChar(50) // ATESTADO, DECLARACAO_VACINA, DECLARACAO_CRECHE
+  content    String    @db.Text
+  validFrom  DateTime  @map("valid_from")
+  validUntil DateTime? @map("valid_until")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  baby       Baby      @relation(fields: [babyId], references: [id], onDelete: Cascade)
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@index([babyId])
+  @@index([professionalId])
+  @@map("medical_certificates")
 }
