@@ -38,7 +38,7 @@ interface AuthResponse {
     caregiver: {
       id: number;
       fullName: string;
-      cpf: string;
+      cpf: string | null;
     } | null;
   };
   tokens: {
