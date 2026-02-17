@@ -196,10 +196,12 @@ export class AdminService {
         include: {
           caregiver: {
             select: {
+              id: true,
               fullName: true,
               phone: true,
               city: true,
               state: true,
+              _count: { select: { babies: true } },
             },
           },
           plan: {
@@ -221,26 +223,33 @@ export class AdminService {
       prisma.user.count({ where }),
     ]);
 
-    // Mask sensitive data
-    const sanitizedUsers = users.map(user => ({
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      status: user.status,
-      isActive: user.isActive,
-      lastActivityAt: user.lastActivityAt,
-      createdAt: user.createdAt,
-      plan: user.plan,
-      caregiver: user.caregiver
-        ? {
-            fullName: user.caregiver.fullName,
-            phone: user.caregiver.phone ? `****${user.caregiver.phone.slice(-4)}` : null,
-            city: user.caregiver.city,
-            state: user.caregiver.state,
-          }
-        : null,
-      babiesCount: user._count.babyMembers,
-    }));
+    // Mask sensitive data + count babies from both sources
+    const sanitizedUsers = users.map(user => {
+      const caregiverBabiesCount = user.caregiver?._count?.babies || 0;
+      const memberBabiesCount = user._count.babyMembers;
+      // Use the larger count (caregiver link is the primary one)
+      const totalBabies = Math.max(caregiverBabiesCount, memberBabiesCount);
+
+      return {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+        isActive: user.isActive,
+        lastActivityAt: user.lastActivityAt,
+        createdAt: user.createdAt,
+        plan: user.plan,
+        caregiver: user.caregiver
+          ? {
+              fullName: user.caregiver.fullName,
+              phone: user.caregiver.phone ? `****${user.caregiver.phone.slice(-4)}` : null,
+              city: user.caregiver.city,
+              state: user.caregiver.state,
+            }
+          : null,
+        babiesCount: totalBabies,
+      };
+    });
 
     return {
       data: sanitizedUsers,
@@ -501,9 +510,7 @@ export class AdminService {
       throw AppError.notFound('Usuário não encontrado');
     }
 
-    // Query babyMembers separately with proper filtering
-    // Use raw query to avoid Prisma validation errors with orphaned records
-    // Table names are mapped: BabyMember -> baby_members, Baby -> babies
+    // Query babies from baby_members (sharing system)
     const babyMembers = await prisma.$queryRaw<Array<{
       bm_id: number;
       bm_role: string;
@@ -524,6 +531,60 @@ export class AdminService {
       WHERE bm.user_id = ${userId}
     `;
 
+    // Query babies from caregiver_babies (primary parent/caregiver link)
+    const caregiverBabies = user.caregiver
+      ? await prisma.$queryRaw<Array<{
+          cb_id: number;
+          relationship: string;
+          is_primary: boolean;
+          baby_id: number;
+          baby_name: string;
+          baby_birth_date: Date;
+        }>>`
+          SELECT 
+            cb.id as cb_id,
+            cb.relationship,
+            cb.is_primary,
+            b.id as baby_id,
+            b.name as baby_name,
+            b.birth_date as baby_birth_date
+          FROM caregiver_babies cb
+          INNER JOIN babies b ON cb.baby_id = b.id
+          WHERE cb.caregiver_id = ${user.caregiver.id}
+        `
+      : [];
+
+    // Combine babies from both sources, avoiding duplicates
+    const babyMap = new Map<number, { id: number; name: string; birthDate: Date; role: string; status: string; source: string }>();
+
+    for (const cb of caregiverBabies) {
+      babyMap.set(cb.baby_id, {
+        id: cb.baby_id,
+        name: cb.baby_name,
+        birthDate: cb.baby_birth_date,
+        role: cb.is_primary ? 'PRIMARY_CAREGIVER' : cb.relationship,
+        status: 'ACTIVE',
+        source: 'caregiver',
+      });
+    }
+
+    for (const bm of babyMembers) {
+      if (!babyMap.has(bm.baby_id)) {
+        babyMap.set(bm.baby_id, {
+          id: bm.baby_id,
+          name: bm.baby_name,
+          birthDate: bm.baby_birth_date,
+          role: bm.bm_role,
+          status: bm.bm_status,
+          source: 'member',
+        });
+      } else {
+        // Baby already from caregiver, add member info
+        const existing = babyMap.get(bm.baby_id)!;
+        existing.source = 'caregiver+member';
+      }
+    }
+
     return {
       id: user.id,
       email: user.email,
@@ -541,20 +602,13 @@ export class AdminService {
             phone: user.caregiver.phone,
             city: user.caregiver.city,
             state: user.caregiver.state,
-            // CPF masked
             cpf: user.caregiver.cpf 
               ? `***.***.${user.caregiver.cpf.slice(-5, -2)}-**`
               : null,
           }
         : null,
       professional: user.professional,
-      babies: babyMembers.map(bm => ({
-        id: bm.baby_id,
-        name: bm.baby_name,
-        birthDate: bm.baby_birth_date,
-        role: bm.bm_role,
-        status: bm.bm_status,
-      })),
+      babies: Array.from(babyMap.values()),
     };
   }
 
