@@ -276,7 +276,11 @@ export class AdminService {
     const where: any = {};
 
     if (filters.query) {
-      where.name = { contains: filters.query, mode: 'insensitive' };
+      where.OR = [
+        { name: { contains: filters.query, mode: 'insensitive' } },
+        { caregivers: { some: { caregiver: { fullName: { contains: filters.query, mode: 'insensitive' } } } } },
+        { caregivers: { some: { caregiver: { user: { email: { contains: filters.query, mode: 'insensitive' } } } } } },
+      ];
     }
 
     if (filters.state) {
@@ -302,15 +306,20 @@ export class AdminService {
               },
             },
           },
+          routineLogs: {
+            select: { startTime: true },
+            orderBy: { startTime: 'desc' },
+            take: 1,
+          },
           _count: {
             select: {
               caregivers: true,
               professionals: true,
-              routineLogs: {
-                where: {
-                  createdAt: { gte: thirtyDaysAgo },
-                },
-              },
+              routineLogs: true,
+              growthRecords: true,
+              milestones: true,
+              vaccineRecords: true,
+              clinicalVisits: true,
             },
           },
         },
@@ -321,12 +330,30 @@ export class AdminService {
       prisma.baby.count({ where }),
     ]);
 
+    // Count routines in last 30 days using startTime (accurate date filtering)
+    const babyIds = babies.map(b => b.id);
+    let routines30dMap: Record<number, number> = {};
+    if (babyIds.length > 0) {
+      const routines30dResults = await prisma.routineLog.groupBy({
+        by: ['babyId'],
+        where: {
+          babyId: { in: babyIds },
+          startTime: { gte: thirtyDaysAgo },
+        },
+        _count: true,
+      });
+      routines30dResults.forEach(r => { routines30dMap[r.babyId] = r._count; });
+    }
+
     const sanitizedBabies = babies.map(baby => ({
       id: baby.id,
       name: baby.name,
       birthDate: baby.birthDate,
+      gender: baby.gender,
       city: baby.city,
       state: baby.state,
+      birthWeightGrams: baby.birthWeightGrams,
+      birthLengthCm: baby.birthLengthCm,
       createdAt: baby.createdAt,
       primaryCaregiver: baby.caregivers[0]
         ? {
@@ -338,7 +365,13 @@ export class AdminService {
         : null,
       caregiversCount: baby._count.caregivers,
       professionalsCount: baby._count.professionals,
-      routinesCount30d: baby._count.routineLogs,
+      routinesTotal: baby._count.routineLogs,
+      routinesCount30d: routines30dMap[baby.id] || 0,
+      growthCount: baby._count.growthRecords,
+      milestonesCount: baby._count.milestones,
+      vaccinesCount: baby._count.vaccineRecords,
+      visitsCount: baby._count.clinicalVisits,
+      lastActivityAt: baby.routineLogs[0]?.startTime || null,
     }));
 
     return {
@@ -393,6 +426,14 @@ export class AdminService {
             createdBy: { select: { id: true, email: true } },
           },
         },
+        growthRecords: {
+          orderBy: { measuredAt: 'desc' },
+          take: 5,
+          select: {
+            id: true, measuredAt: true, weightKg: true, heightCm: true,
+            headCircumferenceCm: true, source: true, notes: true,
+          },
+        },
         _count: {
           select: {
             routineLogs: true,
@@ -409,6 +450,34 @@ export class AdminService {
       throw AppError.notFound('Bebê não encontrado');
     }
 
+    // Get routine breakdown by type
+    const routineBreakdown = await prisma.routineLog.groupBy({
+      by: ['routineType'],
+      where: { babyId },
+      _count: true,
+      _max: { startTime: true },
+      _min: { startTime: true },
+    });
+
+    // Get last activity
+    const lastRoutine = await prisma.routineLog.findFirst({
+      where: { babyId },
+      orderBy: { startTime: 'desc' },
+      select: { startTime: true, routineType: true },
+    });
+
+    // Get 30d routine count
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const routines30d = await prisma.routineLog.count({
+      where: { babyId, startTime: { gte: thirtyDaysAgo } },
+    });
+
+    // Get milestones achieved
+    const milestonesAchieved = await prisma.milestone.count({
+      where: { babyId, occurredOn: { not: null } },
+    });
+
     return {
       id: baby.id,
       name: baby.name,
@@ -421,7 +490,28 @@ export class AdminService {
       birthLengthCm: baby.birthLengthCm,
       createdAt: baby.createdAt,
       updatedAt: baby.updatedAt,
-      counts: baby._count,
+      counts: {
+        ...baby._count,
+        routines30d,
+        milestonesAchieved,
+      },
+      routineBreakdown: routineBreakdown.map(r => ({
+        type: r.routineType,
+        count: r._count,
+        firstAt: r._min.startTime,
+        lastAt: r._max.startTime,
+      })),
+      recentGrowth: baby.growthRecords.map(g => ({
+        id: g.id,
+        measuredAt: g.measuredAt,
+        weightKg: g.weightKg ? Number(g.weightKg) : null,
+        heightCm: g.heightCm ? Number(g.heightCm) : null,
+        headCircumferenceCm: g.headCircumferenceCm ? Number(g.headCircumferenceCm) : null,
+        source: g.source,
+        notes: g.notes,
+      })),
+      lastActivityAt: lastRoutine?.startTime || null,
+      lastActivityType: lastRoutine?.routineType || null,
       caregivers: baby.caregivers.map(cb => ({
         id: cb.id,
         relationship: cb.relationship,
