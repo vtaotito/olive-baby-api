@@ -21,23 +21,26 @@ export class BabyInviteController {
         throw AppError.unauthorized();
       }
 
-      // Check Premium feature for multiple caregivers
-      const { EntitlementsService } = await import('../core/entitlements');
-      const entitlements = await EntitlementsService.getUserEntitlements(req.user.userId);
-      
-      if (!entitlements.features.multiCaregivers) {
-        throw AppError.forbidden(
-          'Compartilhamento com múltiplos cuidadores está disponível apenas no plano Premium',
-          {
-            errorCode: 'PLAN_UPGRADE_REQUIRED',
-            feature: 'multiCaregivers',
-            currentPlan: entitlements.planType,
-          }
-        );
-      }
-
       const babyId = parseInt(req.params.babyId, 10);
       const { emailInvited, memberType, role, invitedName, message, expiresInHours } = req.body;
+
+      // Premium check only for non-PARENT invites (FAMILY, PROFESSIONAL)
+      // Parents can always invite another responsible parent on any plan
+      if (memberType !== 'PARENT') {
+        const { EntitlementsService } = await import('../core/entitlements');
+        const entitlements = await EntitlementsService.getUserEntitlements(req.user.userId);
+        
+        if (!entitlements.features.multiCaregivers) {
+          throw AppError.forbidden(
+            'Compartilhamento com múltiplos cuidadores está disponível apenas no plano Premium',
+            {
+              errorCode: 'PLAN_UPGRADE_REQUIRED',
+              feature: 'multiCaregivers',
+              currentPlan: entitlements.planType,
+            }
+          );
+        }
+      }
 
       const result = await babyInviteService.createBabyInvite(
         {
@@ -76,7 +79,8 @@ export class BabyInviteController {
           emailInvited: result.invite.emailInvited,
           memberType: result.invite.memberType,
           role: result.invite.role,
-          expiresAt: result.invite.expiresAt
+          expiresAt: result.invite.expiresAt,
+          token: result.token,
         }
       });
     } catch (error) {
