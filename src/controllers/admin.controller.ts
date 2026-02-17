@@ -199,6 +199,28 @@ export class AdminController {
   }
 
   /**
+   * GET /admin/babies/:id
+   * Get baby details with full permission tree
+   */
+  static async getBabyDetails(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const babyId = parseInt(req.params.id, 10);
+      if (isNaN(babyId)) {
+        res.status(400).json({ success: false, message: 'ID inválido' });
+        return;
+      }
+      const result = await AdminService.getBabyDetails(babyId);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * PATCH /admin/users/:id/plan
    * Change user plan
    */

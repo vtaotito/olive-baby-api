@@ -344,6 +344,145 @@ export class AdminService {
   }
 
   /**
+   * Get baby details with full permission tree for admin
+   */
+  static async getBabyDetails(babyId: number) {
+    const baby = await prisma.baby.findUnique({
+      where: { id: babyId },
+      include: {
+        caregivers: {
+          include: {
+            caregiver: {
+              include: {
+                user: { select: { id: true, email: true, role: true, status: true, lastActivityAt: true, createdAt: true } },
+              },
+            },
+          },
+          orderBy: { isPrimary: 'desc' },
+        },
+        members: {
+          include: {
+            user: { select: { id: true, email: true, role: true, status: true, lastActivityAt: true, createdAt: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+        professionals: {
+          include: {
+            professional: {
+              select: {
+                id: true, fullName: true, email: true, specialty: true,
+                crmNumber: true, crmState: true, phone: true, status: true, createdAt: true,
+                userId: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+        invites: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            createdBy: { select: { id: true, email: true } },
+          },
+        },
+        _count: {
+          select: {
+            routineLogs: true,
+            growthRecords: true,
+            milestones: true,
+            vaccineRecords: true,
+            clinicalVisits: true,
+          },
+        },
+      },
+    });
+
+    if (!baby) {
+      throw AppError.notFound('Bebê não encontrado');
+    }
+
+    return {
+      id: baby.id,
+      name: baby.name,
+      birthDate: baby.birthDate,
+      gender: baby.gender,
+      city: baby.city,
+      state: baby.state,
+      country: baby.country,
+      birthWeightGrams: baby.birthWeightGrams,
+      birthLengthCm: baby.birthLengthCm,
+      createdAt: baby.createdAt,
+      updatedAt: baby.updatedAt,
+      counts: baby._count,
+      caregivers: baby.caregivers.map(cb => ({
+        id: cb.id,
+        relationship: cb.relationship,
+        isPrimary: cb.isPrimary,
+        createdAt: cb.createdAt,
+        caregiver: {
+          id: cb.caregiver.id,
+          fullName: cb.caregiver.fullName,
+          phone: cb.caregiver.phone,
+          city: cb.caregiver.city,
+          state: cb.caregiver.state,
+        },
+        user: cb.caregiver.user ? {
+          id: cb.caregiver.user.id,
+          email: cb.caregiver.user.email,
+          role: cb.caregiver.user.role,
+          status: cb.caregiver.user.status,
+          lastActivityAt: cb.caregiver.user.lastActivityAt,
+        } : null,
+      })),
+      members: baby.members.map(m => ({
+        id: m.id,
+        memberType: m.memberType,
+        role: m.role,
+        status: m.status,
+        permissions: m.permissions,
+        createdAt: m.createdAt,
+        revokedAt: m.revokedAt,
+        user: {
+          id: m.user.id,
+          email: m.user.email,
+          role: m.user.role,
+          status: m.user.status,
+          lastActivityAt: m.user.lastActivityAt,
+        },
+      })),
+      professionals: baby.professionals.map(bp => ({
+        id: bp.id,
+        role: bp.role,
+        notes: bp.notes,
+        createdAt: bp.createdAt,
+        professional: {
+          id: bp.professional.id,
+          fullName: bp.professional.fullName,
+          email: bp.professional.email,
+          specialty: bp.professional.specialty,
+          crmNumber: bp.professional.crmNumber,
+          crmState: bp.professional.crmState,
+          phone: bp.professional.phone,
+          status: bp.professional.status,
+          hasAccount: !!bp.professional.userId,
+        },
+      })),
+      invites: baby.invites.map(inv => ({
+        id: inv.id,
+        emailInvited: inv.emailInvited,
+        memberType: inv.memberType,
+        role: inv.role,
+        status: inv.status,
+        invitedName: inv.invitedName,
+        message: inv.message,
+        expiresAt: inv.expiresAt,
+        createdAt: inv.createdAt,
+        acceptedAt: inv.acceptedAt,
+        createdBy: inv.createdBy ? { id: inv.createdBy.id, email: inv.createdBy.email } : null,
+      })),
+    };
+  }
+
+  /**
    * Get user details for admin
    */
   static async getUserDetails(userId: number) {

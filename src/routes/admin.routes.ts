@@ -97,6 +97,12 @@ router.get(
   AdminController.listBabies
 );
 
+// GET /admin/babies/:id - Baby details with full permission tree
+router.get(
+  '/babies/:id',
+  AdminController.getBabyDetails
+);
+
 // ==========================================
 // Analytics & Insights
 // ==========================================
