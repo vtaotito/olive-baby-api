@@ -5,6 +5,7 @@ import * as babyInviteService from '../services/baby-invite.service';
 import * as professionalService from '../services/professional.service';
 import * as emailService from '../services/email.service';
 import { AppError } from '../utils/errors/AppError';
+import { logger } from '../config/logger';
 
 export class BabyInviteController {
   /**
@@ -23,6 +24,29 @@ export class BabyInviteController {
 
       const babyId = parseInt(req.params.babyId, 10);
       const { emailInvited, memberType, role, invitedName, message, expiresInHours } = req.body;
+
+      logger.info('create_invite_request', {
+        babyId,
+        emailInvited,
+        memberType,
+        role,
+        invitedName,
+        userId: req.user.userId,
+      });
+
+      // Validar campos obrigatórios
+      if (!emailInvited || !memberType || !role) {
+        throw AppError.badRequest('Campos obrigatórios: emailInvited, memberType, role');
+      }
+
+      if (!['PARENT', 'FAMILY', 'PROFESSIONAL'].includes(memberType)) {
+        throw AppError.badRequest(`memberType inválido: ${memberType}. Valores aceitos: PARENT, FAMILY, PROFESSIONAL`);
+      }
+
+      // Impedir auto-convite
+      if (emailInvited.toLowerCase() === req.user.email.toLowerCase()) {
+        throw AppError.badRequest('Você não pode enviar um convite para seu próprio email');
+      }
 
       // Premium check only for non-PARENT invites (FAMILY, PROFESSIONAL)
       // Parents can always invite another responsible parent on any plan
@@ -55,7 +79,16 @@ export class BabyInviteController {
         req.user.userId
       );
 
+      logger.info('invite_created', {
+        inviteId: result.invite.id,
+        babyId,
+        emailInvited: result.invite.emailInvited,
+        memberType: result.invite.memberType,
+        role: result.invite.role,
+      });
+
       // Enviar email de convite
+      let emailSent = false;
       try {
         await emailService.sendBabyInvite({
           emailInvited: result.invite.emailInvited,
@@ -66,14 +99,21 @@ export class BabyInviteController {
           role: result.invite.role,
           message: result.invite.message || undefined
         });
-      } catch (emailError) {
-        console.error('Error sending invite email:', emailError);
-        // Não falhar a requisição se o email falhar
+        emailSent = true;
+        logger.info('invite_email_sent', { inviteId: result.invite.id, emailInvited: result.invite.emailInvited });
+      } catch (emailError: any) {
+        logger.error('invite_email_failed', {
+          inviteId: result.invite.id,
+          emailInvited: result.invite.emailInvited,
+          error: emailError?.message || String(emailError),
+        });
       }
 
       res.status(201).json({
         success: true,
-        message: 'Convite enviado com sucesso',
+        message: emailSent
+          ? 'Convite enviado com sucesso! Email de convite enviado.'
+          : 'Convite criado, mas houve um problema ao enviar o email. Use o link direto para compartilhar.',
         data: {
           id: result.invite.id,
           emailInvited: result.invite.emailInvited,
@@ -81,9 +121,15 @@ export class BabyInviteController {
           role: result.invite.role,
           expiresAt: result.invite.expiresAt,
           token: result.token,
+          emailSent,
         }
       });
     } catch (error) {
+      logger.error('create_invite_error', {
+        babyId: req.params.babyId,
+        body: req.body,
+        error: error instanceof Error ? error.message : String(error),
+      });
       next(error);
     }
   }

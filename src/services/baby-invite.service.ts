@@ -56,6 +56,19 @@ export async function createBabyInvite(
     }
   }
 
+  // Verificar se o email já é membro ativo deste bebê
+  const existingMember = await prisma.babyMember.findFirst({
+    where: {
+      babyId: data.babyId,
+      user: { email: data.emailInvited.toLowerCase() },
+      status: 'ACTIVE'
+    }
+  });
+
+  if (existingMember) {
+    throw AppError.conflict('Esta pessoa já é membro ativo deste bebê');
+  }
+
   // Verificar se já existe convite pendente para este email
   const existingInvite = await prisma.babyInvite.findFirst({
     where: {
@@ -66,16 +79,21 @@ export async function createBabyInvite(
   });
 
   if (existingInvite) {
-    // Verificar se não expirou
-    if (existingInvite.expiresAt > new Date()) {
-      throw AppError.conflict('Já existe um convite pendente para este email');
-    }
-    
     // Se expirou, marcar como expirado e criar novo
-    await prisma.babyInvite.update({
-      where: { id: existingInvite.id },
-      data: { status: BabyInviteStatus.EXPIRED }
-    });
+    if (existingInvite.expiresAt <= new Date()) {
+      await prisma.babyInvite.update({
+        where: { id: existingInvite.id },
+        data: { status: BabyInviteStatus.EXPIRED }
+      });
+      logger.info('expired_invite_replaced', { oldInviteId: existingInvite.id });
+    } else {
+      // Convite ainda válido: revogar o antigo e criar novo
+      await prisma.babyInvite.update({
+        where: { id: existingInvite.id },
+        data: { status: BabyInviteStatus.REVOKED }
+      });
+      logger.info('pending_invite_replaced', { oldInviteId: existingInvite.id });
+    }
   }
 
   // Gerar token forte
