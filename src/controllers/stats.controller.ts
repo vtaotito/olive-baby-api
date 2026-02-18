@@ -69,16 +69,17 @@ export class StatsController {
         },
         diaper: {
           count: stats.totalDiaper24h || 0,
-          wetCount: 0, // Calcular se necessário
-          dirtyCount: 0, // Calcular se necessário
+          wetCount: stats.diaperWetCount24h || 0,
+          dirtyCount: stats.diaperDirtyCount24h || 0,
         },
         bath: {
-          count: 0, // Calcular se necessário
+          count: stats.bathCount24h || 0,
         },
         extraction: {
           count: (stats.extractionMlPerDay || []).filter(ml => ml > 0).length,
           totalMl: stats.totalExtractionMl24h || 0,
         },
+        hourlyCounts: stats.hourlyCounts || [],
       };
 
       res.status(200).json({
@@ -166,6 +167,9 @@ export class StatsController {
         feeding_counts: stats.feedingCountsPerDay || [],
         feeding_minutes: stats.feedingMinutesPerDay || [],
         diaper_counts: stats.diaperCountsPerDay || [],
+        diaper_wet_counts: stats.diaperWetCountsPerDay || [],
+        diaper_dirty_counts: stats.diaperDirtyCountsPerDay || [],
+        bath_counts: stats.bathCountsPerDay || [],
         extraction_ml: stats.extractionMlPerDay || [],
         bottle_ml: stats.bottleMlPerDay || [],
         complement_ml: stats.complementMlPerDay || [],

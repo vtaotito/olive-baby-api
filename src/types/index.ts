@@ -120,6 +120,14 @@ export interface BabyStats {
   // Fraldas
   totalDiaper24h: number;
   diaperCountsPerDay: number[];
+  diaperWetCount24h: number;
+  diaperDirtyCount24h: number;
+  diaperWetCountsPerDay: number[];
+  diaperDirtyCountsPerDay: number[];
+
+  // Banho
+  bathCount24h: number;
+  bathCountsPerDay: number[];
   
   // Atividade por hora (0-23)
   hourlyCounts: number[];

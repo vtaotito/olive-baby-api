@@ -2,7 +2,7 @@
 import { prisma } from '../config/database';
 import { RoutineType } from '@prisma/client';
 import { requireBabyAccessByCaregiverId } from '../utils/helpers/baby-permission.helper';
-import { BabyStats, FeedingMeta, DiaperMeta, MilkExtractionMeta } from '../types';
+import { BabyStats, FeedingMeta, DiaperMeta, MilkExtractionMeta, BathMeta } from '../types';
 import { getDateRange, get24hRange } from '../utils/helpers/date.helper';
 
 export class StatsService {
@@ -81,6 +81,14 @@ export class StatsService {
       // Fraldas
       totalDiaper24h: routines24h.filter(r => r.routineType === 'DIAPER').length,
       diaperCountsPerDay: this.calculateCountsPerDay(routines, 'DIAPER', start, days),
+      diaperWetCount24h: this.calculateDiaperWetCount(routines24h),
+      diaperDirtyCount24h: this.calculateDiaperDirtyCount(routines24h),
+      diaperWetCountsPerDay: this.calculateDiaperTypePerDay(routines, 'wet', start, days),
+      diaperDirtyCountsPerDay: this.calculateDiaperTypePerDay(routines, 'dirty', start, days),
+
+      // Banho
+      bathCount24h: routines24h.filter(r => r.routineType === 'BATH').length,
+      bathCountsPerDay: this.calculateCountsPerDay(routines, 'BATH', start, days),
 
       // Atividade por hora
       hourlyCounts: this.calculateHourlyCounts(routines24h),
@@ -336,6 +344,50 @@ export class StatsService {
     return counts;
   }
 
+  private static calculateDiaperWetCount(routines: any[]): number {
+    return routines.filter(r => {
+      if (r.routineType !== 'DIAPER') return false;
+      const meta = r.meta as DiaperMeta | null;
+      if (!meta?.diaperType) return false;
+      return meta.diaperType === 'pee' || meta.diaperType === 'both';
+    }).length;
+  }
+
+  private static calculateDiaperDirtyCount(routines: any[]): number {
+    return routines.filter(r => {
+      if (r.routineType !== 'DIAPER') return false;
+      const meta = r.meta as DiaperMeta | null;
+      if (!meta?.diaperType) return false;
+      return meta.diaperType === 'poop' || meta.diaperType === 'both';
+    }).length;
+  }
+
+  private static calculateDiaperTypePerDay(routines: any[], type: 'wet' | 'dirty', startDate: Date, days: number): number[] {
+    const result: number[] = [];
+
+    for (let i = 0; i < days; i++) {
+      const dayStart = new Date(startDate);
+      dayStart.setDate(dayStart.getDate() + i);
+      dayStart.setHours(0, 0, 0, 0);
+
+      const dayEnd = new Date(dayStart);
+      dayEnd.setHours(23, 59, 59, 999);
+
+      const count = routines.filter(r => {
+        if (r.routineType !== 'DIAPER') return false;
+        if (r.startTime < dayStart || r.startTime > dayEnd) return false;
+        const meta = r.meta as DiaperMeta | null;
+        if (!meta?.diaperType) return false;
+        if (type === 'wet') return meta.diaperType === 'pee' || meta.diaperType === 'both';
+        return meta.diaperType === 'poop' || meta.diaperType === 'both';
+      }).length;
+
+      result.push(count);
+    }
+
+    return result;
+  }
+
   /**
    * Calcula volumetria por tipo de leite (Leite Materno, Fórmula, Misto)
    * Inclui mamadeira + complemento da amamentação
@@ -512,6 +564,14 @@ export class StatsService {
       // Fraldas
       totalDiaper24h: routines24h.filter(r => r.routineType === 'DIAPER').length,
       diaperCountsPerDay: this.calculateCountsPerDay(routines, 'DIAPER', start, days),
+      diaperWetCount24h: this.calculateDiaperWetCount(routines24h),
+      diaperDirtyCount24h: this.calculateDiaperDirtyCount(routines24h),
+      diaperWetCountsPerDay: this.calculateDiaperTypePerDay(routines, 'wet', start, days),
+      diaperDirtyCountsPerDay: this.calculateDiaperTypePerDay(routines, 'dirty', start, days),
+
+      // Banho
+      bathCount24h: routines24h.filter(r => r.routineType === 'BATH').length,
+      bathCountsPerDay: this.calculateCountsPerDay(routines, 'BATH', start, days),
 
       // Atividade por hora
       hourlyCounts: this.calculateHourlyCounts(routines24h),
