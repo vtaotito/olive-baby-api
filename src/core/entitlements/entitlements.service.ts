@@ -315,9 +315,10 @@ export class EntitlementsService {
 
     switch (action) {
       case 'create_baby': {
-        const babyCount = await prisma.caregiverBaby.count({
+        const babyCount = await prisma.babyMember.count({
           where: {
-            caregiver: { userId },
+            userId,
+            status: 'ACTIVE',
           },
         });
         const limit = entitlements.limits.maxBabies;
@@ -335,10 +336,11 @@ export class EntitlementsService {
         const profCount = await prisma.babyProfessional.count({
           where: {
             baby: {
-              caregivers: {
+              members: {
                 some: {
-                  caregiver: { userId },
-                  isPrimary: true,
+                  userId,
+                  role: { in: ['OWNER_PARENT_1', 'OWNER_PARENT_2'] },
+                  status: 'ACTIVE',
                 },
               },
             },

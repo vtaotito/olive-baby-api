@@ -5,6 +5,8 @@ import { Relationship } from '@prisma/client';
 import { isFutureDate } from '../utils/helpers/date.helper';
 import { hashCpf, validateCpfFormat, cleanCpf } from '../utils/helpers/cpf-hash.helper';
 import { BabyMemberType, BabyMemberRole } from '@prisma/client';
+import { hasBabyAccessByCaregiverId, isBabyOwner } from '../utils/helpers/baby-permission.helper';
+import { BabyMemberStatus } from '@prisma/client';
 
 interface CreateBabyInput {
   name: string;
@@ -141,7 +143,7 @@ export class BabyService {
     }
 
     // Verificar se o cuidador tem acesso
-    const hasAccess = baby.caregivers.some(cb => cb.caregiverId === caregiverId);
+    const hasAccess = await hasBabyAccessByCaregiverId(caregiverId, babyId);
     if (!hasAccess) {
       throw AppError.forbidden('Você não tem acesso a este bebê');
     }
@@ -324,17 +326,17 @@ export class BabyService {
   }
 
   static async delete(babyId: number, caregiverId: number) {
-    // Verificar se é cuidador primário
-    const caregiverBaby = await prisma.caregiverBaby.findFirst({
-      where: {
-        babyId,
-        caregiverId,
-        isPrimary: true,
-      },
+    const caregiver = await prisma.caregiver.findUnique({
+      where: { id: caregiverId },
+      select: { userId: true }
     });
-
-    if (!caregiverBaby) {
-      throw AppError.forbidden('Apenas o cuidador primário pode remover o bebê');
+    if (!caregiver) {
+      throw AppError.forbidden('Cuidador não encontrado');
+    }
+    
+    const isOwner = await isBabyOwner(caregiver.userId, babyId);
+    if (!isOwner) {
+      throw AppError.forbidden('Apenas os responsáveis principais podem remover o bebê');
     }
 
     await prisma.baby.delete({
@@ -342,6 +344,7 @@ export class BabyService {
     });
   }
 
+  /** @deprecated Use BabyInvite/BabyMember system instead */
   static async addCaregiver(babyId: number, primaryCaregiverId: number, input: AddCaregiverInput) {
     // Verificar se quem está adicionando é primário
     const isPrimaryCaregiver = await prisma.caregiverBaby.findFirst({
@@ -396,6 +399,7 @@ export class BabyService {
     return caregiverBaby;
   }
 
+  /** @deprecated Use BabyMember revoke system instead */
   static async removeCaregiver(babyId: number, primaryCaregiverId: number, caregiverIdToRemove: number) {
     // Verificar se quem está removendo é primário
     const isPrimaryCaregiver = await prisma.caregiverBaby.findFirst({
@@ -423,6 +427,7 @@ export class BabyService {
     });
   }
 
+  /** @deprecated Use BabyMember list instead */
   static async listCaregivers(babyId: number) {
     const caregivers = await prisma.caregiverBaby.findMany({
       where: { babyId },

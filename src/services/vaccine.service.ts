@@ -134,18 +134,9 @@ export class VaccineService {
     const { babyId, source = VaccineCalendarSource.PNI } = input;
 
     // Verificar acesso ao bebê
-    const baby = await prisma.baby.findFirst({
-      where: {
-        id: babyId,
-        caregivers: {
-          some: { caregiverId },
-        },
-      },
-    });
-
-    if (!baby) {
-      throw AppError.forbidden('Você não tem acesso a este bebê');
-    }
+    await requireBabyAccessByCaregiverId(caregiverId, babyId);
+    const baby = await prisma.baby.findUnique({ where: { id: babyId } });
+    if (!baby) throw AppError.notFound('Bebê não encontrado');
 
     // Buscar definições do calendário
     const definitions = await prisma.vaccineDefinition.findMany({
@@ -442,15 +433,13 @@ export class VaccineService {
    * Obtém um registro específico
    */
   static async getVaccineRecordById(caregiverId: number, babyId: number, recordId: number) {
+    // Verificar acesso ao bebê
+    await requireBabyAccessByCaregiverId(caregiverId, babyId);
+    
     const record = await prisma.babyVaccineRecord.findFirst({
       where: {
         id: recordId,
         babyId,
-        baby: {
-          caregivers: {
-            some: { caregiverId },
-          },
-        },
       },
       include: {
         baby: {

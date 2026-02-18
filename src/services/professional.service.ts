@@ -3,6 +3,8 @@ import { PrismaClient, ProfessionalStatus, ProfessionalRole, RegistrationSource,
 import { AppError } from '../utils/errors/AppError';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import { requireBabyAccessByCaregiverId, hasBabyAccessByCaregiverId } from '../utils/helpers/baby-permission.helper';
+import { isBabyOwner } from '../utils/helpers/baby-permission.helper';
 
 const prisma = new PrismaClient();
 
@@ -39,15 +41,7 @@ export interface UpdateProfessionalData {
 // Get all professionals linked to a baby
 export async function getProfessionalsByBaby(babyId: number, caregiverId: number) {
   // Verify caregiver has access to this baby
-  const caregiverBaby = await prisma.caregiverBaby.findUnique({
-    where: {
-      caregiverId_babyId: { caregiverId, babyId }
-    }
-  });
-
-  if (!caregiverBaby) {
-    throw new AppError('Você não tem acesso a este bebê', 403);
-  }
+  await requireBabyAccessByCaregiverId(caregiverId, babyId);
 
   const babyProfessionals = await prisma.babyProfessional.findMany({
     where: { babyId },
@@ -144,18 +138,16 @@ export async function getProfessionalById(professionalId: number) {
 // Invite a professional (by caregiver)
 export async function inviteProfessional(data: InviteProfessionalData, caregiverId: number) {
   // Verify caregiver is primary for this baby
-  const caregiverBaby = await prisma.caregiverBaby.findUnique({
-    where: {
-      caregiverId_babyId: { caregiverId, babyId: data.babyId }
-    }
+  const caregiver = await prisma.caregiver.findUnique({
+    where: { id: caregiverId },
+    select: { userId: true }
   });
-
-  if (!caregiverBaby) {
-    throw new AppError('Você não tem acesso a este bebê', 403);
+  if (!caregiver) {
+    throw new AppError('Cuidador não encontrado', 403);
   }
-
-  if (!caregiverBaby.isPrimary) {
-    throw new AppError('Apenas o cuidador principal pode convidar profissionais', 403);
+  const isOwner = await isBabyOwner(caregiver.userId, data.babyId);
+  if (!isOwner) {
+    throw new AppError('Apenas o responsável principal pode convidar profissionais', 403);
   }
 
   // Check if professional already exists
@@ -221,13 +213,13 @@ export async function inviteProfessional(data: InviteProfessionalData, caregiver
 
   // Get baby and caregiver info for email
   const baby = await prisma.baby.findUnique({ where: { id: data.babyId } });
-  const caregiver = await prisma.caregiver.findUnique({ where: { id: caregiverId } });
+  const caregiverProfile = await prisma.caregiver.findUnique({ where: { id: caregiverId } });
 
   return {
     professional,
     inviteToken,
     baby,
-    caregiver
+    caregiver: caregiverProfile
   };
 }
 
@@ -325,13 +317,10 @@ export async function resendInvite(professionalId: number, caregiverId: number) 
   }
 
   // Check if caregiver has access
-  const hasAccess = professional.babies.some(bp => 
-    prisma.caregiverBaby.findUnique({
-      where: {
-        caregiverId_babyId: { caregiverId, babyId: bp.babyId }
-      }
-    })
+  const hasAnyAccess = await Promise.all(
+    professional.babies.map(bp => hasBabyAccessByCaregiverId(caregiverId, bp.babyId))
   );
+  const hasAccess = hasAnyAccess.some(Boolean);
 
   // Generate new token
   const inviteToken = crypto.randomBytes(32).toString('hex');
@@ -370,14 +359,16 @@ export async function removeProfessionalFromBaby(
   }
 
   // Verify caregiver is primary for this baby
-  const caregiverBaby = await prisma.caregiverBaby.findUnique({
-    where: {
-      caregiverId_babyId: { caregiverId, babyId: babyProfessional.babyId }
-    }
+  const caregiver = await prisma.caregiver.findUnique({
+    where: { id: caregiverId },
+    select: { userId: true }
   });
-
-  if (!caregiverBaby || !caregiverBaby.isPrimary) {
-    throw new AppError('Apenas o cuidador principal pode remover profissionais', 403);
+  if (!caregiver) {
+    throw new AppError('Cuidador não encontrado', 403);
+  }
+  const isOwner = await isBabyOwner(caregiver.userId, babyProfessional.babyId);
+  if (!isOwner) {
+    throw new AppError('Apenas o responsável principal pode remover profissionais', 403);
   }
 
   await prisma.babyProfessional.delete({
@@ -402,15 +393,7 @@ export async function updateProfessionalLink(
   }
 
   // Verify caregiver has access
-  const caregiverBaby = await prisma.caregiverBaby.findUnique({
-    where: {
-      caregiverId_babyId: { caregiverId, babyId: babyProfessional.babyId }
-    }
-  });
-
-  if (!caregiverBaby) {
-    throw new AppError('Você não tem acesso a este bebê', 403);
-  }
+  await requireBabyAccessByCaregiverId(caregiverId, babyProfessional.babyId);
 
   return prisma.babyProfessional.update({
     where: { id: babyProfessionalId },

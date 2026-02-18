@@ -136,17 +136,12 @@ export class ExportService {
   // Exportar relatório completo do bebê em CSV
   static async exportFullReport(caregiverId: number, babyId: number, startDate?: Date, endDate?: Date): Promise<string> {
     // Verificar acesso ao bebê
-    const baby = await prisma.baby.findFirst({
-      where: {
-        id: babyId,
-        caregivers: {
-          some: { caregiverId },
-        },
-      },
-    });
+    await requireBabyAccessByCaregiverId(caregiverId, babyId);
+
+    const baby = await prisma.baby.findUnique({ where: { id: babyId } });
 
     if (!baby) {
-      throw AppError.forbidden('Você não tem acesso a este bebê');
+      throw AppError.notFound('Bebê não encontrado');
     }
 
     let csv = '';
