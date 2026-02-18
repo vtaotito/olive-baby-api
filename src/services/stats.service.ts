@@ -1,20 +1,13 @@
 // Olive Baby API - Stats Service
 import { prisma } from '../config/database';
-import { AppError } from '../utils/errors/AppError';
 import { RoutineType } from '@prisma/client';
+import { requireBabyAccessByCaregiverId } from '../utils/helpers/baby-permission.helper';
 import { BabyStats, FeedingMeta, DiaperMeta, MilkExtractionMeta } from '../types';
 import { getDateRange, get24hRange } from '../utils/helpers/date.helper';
 
 export class StatsService {
   static async getStats(caregiverId: number, babyId: number, days: number = 7): Promise<BabyStats> {
-    // Verificar acesso ao bebê
-    const hasAccess = await prisma.caregiverBaby.findFirst({
-      where: { babyId, caregiverId },
-    });
-
-    if (!hasAccess) {
-      throw AppError.forbidden('Você não tem acesso a este bebê');
-    }
+    await requireBabyAccessByCaregiverId(caregiverId, babyId);
 
     const { start, end } = getDateRange(days);
     const { start: start24h, end: end24h } = get24hRange();
@@ -348,14 +341,7 @@ export class StatsService {
    * Inclui mamadeira + complemento da amamentação
    */
   static async getVolumeByType(caregiverId: number, babyId: number, days: number = 7) {
-    // Verificar acesso ao bebê
-    const hasAccess = await prisma.caregiverBaby.findFirst({
-      where: { babyId, caregiverId },
-    });
-
-    if (!hasAccess) {
-      throw AppError.forbidden('Você não tem acesso a este bebê');
-    }
+    await requireBabyAccessByCaregiverId(caregiverId, babyId);
 
     const { start, end } = getDateRange(days);
 

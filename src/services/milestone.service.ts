@@ -2,6 +2,7 @@
 import { prisma } from '../config/database';
 import { AppError } from '../utils/errors/AppError';
 import { PREDEFINED_MILESTONES } from '../types';
+import { requireBabyAccessByCaregiverId, hasBabyAccessByCaregiverId } from '../utils/helpers/baby-permission.helper';
 
 interface CreateMilestoneInput {
   babyId: number;
@@ -25,16 +26,7 @@ export class MilestoneService {
 
   static async create(caregiverId: number, input: CreateMilestoneInput) {
     // Verificar acesso ao bebê
-    const hasAccess = await prisma.caregiverBaby.findFirst({
-      where: {
-        babyId: input.babyId,
-        caregiverId,
-      },
-    });
-
-    if (!hasAccess) {
-      throw AppError.forbidden('Você não tem acesso a este bebê');
-    }
+    await requireBabyAccessByCaregiverId(caregiverId, input.babyId);
 
     // Verificar se o marco já foi registrado para este bebê
     const existingMilestone = await prisma.milestone.findFirst({
@@ -93,7 +85,7 @@ export class MilestoneService {
     }
 
     // Verificar acesso
-    const hasAccess = milestone.baby.caregivers.some(cb => cb.caregiverId === caregiverId);
+    const hasAccess = await hasBabyAccessByCaregiverId(caregiverId, milestone.babyId);
     if (!hasAccess) {
       throw AppError.forbidden('Você não tem acesso a este registro');
     }
@@ -103,13 +95,7 @@ export class MilestoneService {
 
   static async listByBaby(caregiverId: number, babyId: number) {
     // Verificar acesso ao bebê
-    const hasAccess = await prisma.caregiverBaby.findFirst({
-      where: { babyId, caregiverId },
-    });
-
-    if (!hasAccess) {
-      throw AppError.forbidden('Você não tem acesso a este bebê');
-    }
+    await requireBabyAccessByCaregiverId(caregiverId, babyId);
 
     // Buscar marcos registrados
     const registeredMilestones = await prisma.milestone.findMany({
@@ -234,13 +220,7 @@ export class MilestoneService {
   // Desmarcar marco (remove registro)
   static async unmark(caregiverId: number, babyId: number, milestoneKey: string) {
     // Verificar acesso ao bebê
-    const hasAccess = await prisma.caregiverBaby.findFirst({
-      where: { babyId, caregiverId },
-    });
-
-    if (!hasAccess) {
-      throw AppError.forbidden('Você não tem acesso a este bebê');
-    }
+    await requireBabyAccessByCaregiverId(caregiverId, babyId);
 
     const milestone = await prisma.milestone.findFirst({
       where: { babyId, milestoneKey },
@@ -256,13 +236,7 @@ export class MilestoneService {
   // Progresso geral de marcos
   static async getProgress(caregiverId: number, babyId: number) {
     // Verificar acesso ao bebê
-    const hasAccess = await prisma.caregiverBaby.findFirst({
-      where: { babyId, caregiverId },
-    });
-
-    if (!hasAccess) {
-      throw AppError.forbidden('Você não tem acesso a este bebê');
-    }
+    await requireBabyAccessByCaregiverId(caregiverId, babyId);
 
     return this.getProgressByBabyId(babyId);
   }

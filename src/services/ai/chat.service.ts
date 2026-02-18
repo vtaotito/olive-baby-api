@@ -2,6 +2,7 @@
 import { prisma } from '../../config/database';
 import { logger } from '../../config/logger';
 import { AppError } from '../../utils/errors/AppError';
+import { requireBabyAccessByCaregiverId } from '../../utils/helpers/baby-permission.helper';
 import { openaiService } from './openai.service';
 import { ragService } from './rag.service';
 import { aiToolsService } from './tools.service';
@@ -47,13 +48,7 @@ export class AIChatService {
       throw AppError.forbidden('Usuário não é um cuidador');
     }
 
-    const hasAccess = await prisma.caregiverBaby.findFirst({
-      where: { caregiverId: caregiver.id, babyId },
-    });
-
-    if (!hasAccess) {
-      throw AppError.forbidden('Você não tem acesso a este bebê');
-    }
+    await requireBabyAccessByCaregiverId(caregiver.id, babyId);
 
     const session = await prisma.aiChatSession.create({
       data: {

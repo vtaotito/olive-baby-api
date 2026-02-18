@@ -2,6 +2,7 @@
 import { prisma } from '../config/database';
 import { AppError } from '../utils/errors/AppError';
 import { RoutineType } from '@prisma/client';
+import { requireBabyAccessByCaregiverId } from '../utils/helpers/baby-permission.helper';
 import { generateRoutinesCsv } from '../utils/helpers/csv.helper';
 import { formatDateBR, formatTimeBR, formatDuration } from '../utils/helpers/date.helper';
 
@@ -21,17 +22,7 @@ interface ExportGrowthOptions {
 export class ExportService {
   // Exportar rotinas em CSV
   static async exportRoutinesCsv(caregiverId: number, options: ExportOptions): Promise<string> {
-    // Verificar acesso ao bebê
-    const hasAccess = await prisma.caregiverBaby.findFirst({
-      where: {
-        babyId: options.babyId,
-        caregiverId,
-      },
-    });
-
-    if (!hasAccess) {
-      throw AppError.forbidden('Você não tem acesso a este bebê');
-    }
+    await requireBabyAccessByCaregiverId(caregiverId, options.babyId);
 
     // Construir filtros
     const where: any = {
@@ -70,17 +61,7 @@ export class ExportService {
 
   // Exportar crescimento em CSV
   static async exportGrowthCsv(caregiverId: number, options: ExportGrowthOptions): Promise<string> {
-    // Verificar acesso ao bebê
-    const hasAccess = await prisma.caregiverBaby.findFirst({
-      where: {
-        babyId: options.babyId,
-        caregiverId,
-      },
-    });
-
-    if (!hasAccess) {
-      throw AppError.forbidden('Você não tem acesso a este bebê');
-    }
+    await requireBabyAccessByCaregiverId(caregiverId, options.babyId);
 
     // Construir filtros
     const where: any = {
@@ -126,14 +107,7 @@ export class ExportService {
 
   // Exportar marcos em CSV
   static async exportMilestonesCsv(caregiverId: number, babyId: number): Promise<string> {
-    // Verificar acesso ao bebê
-    const hasAccess = await prisma.caregiverBaby.findFirst({
-      where: { babyId, caregiverId },
-    });
-
-    if (!hasAccess) {
-      throw AppError.forbidden('Você não tem acesso a este bebê');
-    }
+    await requireBabyAccessByCaregiverId(caregiverId, babyId);
 
     // Buscar marcos
     const milestones = await prisma.milestone.findMany({

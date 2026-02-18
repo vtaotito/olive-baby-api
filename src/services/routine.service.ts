@@ -9,6 +9,11 @@ import {
   mergeRoutineMeta,
   sanitizeRoutineMeta 
 } from '../utils/routineMeta.utils';
+import {
+  requireBabyAccessByCaregiverId,
+  hasBabyAccessByCaregiverId,
+  getBabyIdsByCaregiverId
+} from '../utils/helpers/baby-permission.helper';
 
 interface CreateRoutineInput {
   babyId: number;
@@ -42,17 +47,7 @@ export class RoutineService {
   // ==========================================
 
   static async create(caregiverId: number, input: CreateRoutineInput) {
-    // Verificar acesso ao bebê
-    const hasAccess = await prisma.caregiverBaby.findFirst({
-      where: {
-        babyId: input.babyId,
-        caregiverId,
-      },
-    });
-
-    if (!hasAccess) {
-      throw AppError.forbidden('Você não tem acesso a este bebê');
-    }
+    await requireBabyAccessByCaregiverId(caregiverId, input.babyId);
 
     // Calcular duração se tiver endTime
     let durationSeconds: number | null = null;
@@ -97,8 +92,7 @@ export class RoutineService {
       throw AppError.notFound('Registro não encontrado');
     }
 
-    // Verificar acesso
-    const hasAccess = routine.baby.caregivers.some(cb => cb.caregiverId === caregiverId);
+    const hasAccess = await hasBabyAccessByCaregiverId(caregiverId, routine.babyId);
     if (!hasAccess) {
       throw AppError.forbidden('Você não tem acesso a este registro');
     }
@@ -107,12 +101,9 @@ export class RoutineService {
   }
 
   static async list(caregiverId: number, filter: ListRoutinesFilter, page = 1, limit = 50) {
+    const allowedBabyIds = await getBabyIdsByCaregiverId(caregiverId);
     const where: any = {
-      baby: {
-        caregivers: {
-          some: { caregiverId },
-        },
-      },
+      babyId: { in: allowedBabyIds },
     };
 
     if (filter.babyId) {
@@ -307,14 +298,7 @@ export class RoutineService {
     meta?: RoutineMeta,
     notes?: string
   ) {
-    // Verificar acesso ao bebê
-    const hasAccess = await prisma.caregiverBaby.findFirst({
-      where: { babyId, caregiverId },
-    });
-
-    if (!hasAccess) {
-      throw AppError.forbidden('Você não tem acesso a este bebê');
-    }
+    await requireBabyAccessByCaregiverId(caregiverId, babyId);
 
     // Verificar se é rotina com timer
     if (!TIMED_ROUTINES.includes(routineType)) {
@@ -355,14 +339,7 @@ export class RoutineService {
     meta?: RoutineMeta,
     notes?: string
   ) {
-    // Verificar acesso ao bebê
-    const hasAccess = await prisma.caregiverBaby.findFirst({
-      where: { babyId, caregiverId },
-    });
-
-    if (!hasAccess) {
-      throw AppError.forbidden('Você não tem acesso a este bebê');
-    }
+    await requireBabyAccessByCaregiverId(caregiverId, babyId);
 
     // Buscar rotina em aberto
     const openRoutine = await this.hasOpenRoutine(babyId, routineType);
@@ -394,14 +371,7 @@ export class RoutineService {
   }
 
   static async getOpenRoutine(caregiverId: number, babyId: number, routineType: RoutineType) {
-    // Verificar acesso ao bebê
-    const hasAccess = await prisma.caregiverBaby.findFirst({
-      where: { babyId, caregiverId },
-    });
-
-    if (!hasAccess) {
-      throw AppError.forbidden('Você não tem acesso a este bebê');
-    }
+    await requireBabyAccessByCaregiverId(caregiverId, babyId);
 
     const openRoutine = await this.hasOpenRoutine(babyId, routineType);
     return openRoutine;
@@ -412,14 +382,7 @@ export class RoutineService {
    * Otimização: 1 query ao invés de 4 queries paralelas
    */
   static async getAllOpenRoutines(caregiverId: number, babyId: number) {
-    // Verificar acesso ao bebê
-    const hasAccess = await prisma.caregiverBaby.findFirst({
-      where: { babyId, caregiverId },
-    });
-
-    if (!hasAccess) {
-      throw AppError.forbidden('Você não tem acesso a este bebê');
-    }
+    await requireBabyAccessByCaregiverId(caregiverId, babyId);
 
     return this.getAllOpenRoutinesByBaby(babyId);
   }
@@ -459,14 +422,7 @@ export class RoutineService {
     meta?: RoutineMeta,
     notes?: string
   ) {
-    // Verificar acesso ao bebê
-    const hasAccess = await prisma.caregiverBaby.findFirst({
-      where: { babyId, caregiverId },
-    });
-
-    if (!hasAccess) {
-      throw AppError.forbidden('Você não tem acesso a este bebê');
-    }
+    await requireBabyAccessByCaregiverId(caregiverId, babyId);
 
     // Sanitizar meta baseado no routineType
     const sanitizedMeta = normalizeAndSanitizeMeta(

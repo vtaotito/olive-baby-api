@@ -1,6 +1,7 @@
 // Olive Baby API - AI Insight Engine Service
 import { prisma } from '../../config/database';
 import { logger } from '../../config/logger';
+import { requireBabyAccessByCaregiverId } from '../../utils/helpers/baby-permission.helper';
 import { StatsService } from '../stats.service';
 import { AiInsight, AiInsightSeverity, AiInsightType } from '../../types';
 import { differenceInHours, differenceInMonths, subHours } from 'date-fns';
@@ -138,14 +139,7 @@ export class AIInsightService {
     babyId: number,
     options?: { includeRead?: boolean; includeDismissed?: boolean }
   ): Promise<AiInsight[]> {
-    // Verify access
-    const hasAccess = await prisma.caregiverBaby.findFirst({
-      where: { caregiverId, babyId },
-    });
-
-    if (!hasAccess) {
-      return [];
-    }
+    await requireBabyAccessByCaregiverId(caregiverId, babyId);
 
     const where: any = {
       babyId,

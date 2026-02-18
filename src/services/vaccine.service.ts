@@ -1,6 +1,7 @@
 // Olive Baby API - Vaccine Service
 import { prisma } from '../config/database';
 import { AppError } from '../utils/errors/AppError';
+import { requireBabyAccessByCaregiverId } from '../utils/helpers/baby-permission.helper';
 import { VaccineStatus, VaccineCalendarSource } from '@prisma/client';
 import { addMonths, addDays, isBefore, startOfDay, differenceInDays } from 'date-fns';
 
@@ -210,13 +211,7 @@ export class VaccineService {
    */
   static async getVaccineSummary(caregiverId: number, babyId: number): Promise<VaccineSummary> {
     // Verificar acesso ao bebê
-    const hasAccess = await prisma.caregiverBaby.findFirst({
-      where: { babyId, caregiverId },
-    });
-
-    if (!hasAccess) {
-      throw AppError.forbidden('Você não tem acesso a este bebê');
-    }
+    await requireBabyAccessByCaregiverId(caregiverId, babyId);
 
     // Buscar todos os registros
     const records = await prisma.babyVaccineRecord.findMany({
@@ -289,13 +284,7 @@ export class VaccineService {
     }
   ) {
     // Verificar acesso ao bebê
-    const hasAccess = await prisma.caregiverBaby.findFirst({
-      where: { babyId, caregiverId },
-    });
-
-    if (!hasAccess) {
-      throw AppError.forbidden('Você não tem acesso a este bebê');
-    }
+    await requireBabyAccessByCaregiverId(caregiverId, babyId);
 
     const where: any = { babyId };
     
@@ -485,13 +474,7 @@ export class VaccineService {
    */
   static async createManualRecord(caregiverId: number, input: CreateVaccineRecordInput) {
     // Verificar acesso ao bebê
-    const hasAccess = await prisma.caregiverBaby.findFirst({
-      where: { babyId: input.babyId, caregiverId },
-    });
-
-    if (!hasAccess) {
-      throw AppError.forbidden('Você não tem acesso a este bebê');
-    }
+    await requireBabyAccessByCaregiverId(caregiverId, input.babyId);
 
     // Verificar duplicidade
     const existing = await prisma.babyVaccineRecord.findFirst({

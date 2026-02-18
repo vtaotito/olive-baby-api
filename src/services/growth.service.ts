@@ -2,6 +2,7 @@
 import { prisma } from '../config/database';
 import { AppError } from '../utils/errors/AppError';
 import { Decimal } from '@prisma/client/runtime/library';
+import { requireBabyAccessByCaregiverId, hasBabyAccessByCaregiverId } from '../utils/helpers/baby-permission.helper';
 
 interface CreateGrowthInput {
   babyId: number;
@@ -29,17 +30,7 @@ interface ListGrowthFilter {
 
 export class GrowthService {
   static async create(caregiverId: number, input: CreateGrowthInput) {
-    // Verificar acesso ao bebê
-    const hasAccess = await prisma.caregiverBaby.findFirst({
-      where: {
-        babyId: input.babyId,
-        caregiverId,
-      },
-    });
-
-    if (!hasAccess) {
-      throw AppError.forbidden('Você não tem acesso a este bebê');
-    }
+    await requireBabyAccessByCaregiverId(caregiverId, input.babyId);
 
     // Verificar se tem pelo menos uma medição
     if (!input.weightKg && !input.heightCm && !input.headCircumferenceCm) {
@@ -73,11 +64,7 @@ export class GrowthService {
     const growth = await prisma.growth.findUnique({
       where: { id },
       include: {
-        baby: {
-          include: {
-            caregivers: true,
-          },
-        },
+        baby: true,
       },
     });
 
@@ -86,7 +73,7 @@ export class GrowthService {
     }
 
     // Verificar acesso
-    const hasAccess = growth.baby.caregivers.some(cb => cb.caregiverId === caregiverId);
+    const hasAccess = await hasBabyAccessByCaregiverId(caregiverId, growth.babyId);
     if (!hasAccess) {
       throw AppError.forbidden('Você não tem acesso a este registro');
     }
@@ -101,14 +88,7 @@ export class GrowthService {
     page = 1,
     limit = 50
   ) {
-    // Verificar acesso ao bebê
-    const hasAccess = await prisma.caregiverBaby.findFirst({
-      where: { babyId, caregiverId },
-    });
-
-    if (!hasAccess) {
-      throw AppError.forbidden('Você não tem acesso a este bebê');
-    }
+    await requireBabyAccessByCaregiverId(caregiverId, babyId);
 
     const where: any = { babyId };
 
@@ -207,14 +187,7 @@ export class GrowthService {
 
   // Buscar última medição do bebê
   static async getLatest(caregiverId: number, babyId: number) {
-    // Verificar acesso ao bebê
-    const hasAccess = await prisma.caregiverBaby.findFirst({
-      where: { babyId, caregiverId },
-    });
-
-    if (!hasAccess) {
-      throw AppError.forbidden('Você não tem acesso a este bebê');
-    }
+    await requireBabyAccessByCaregiverId(caregiverId, babyId);
 
     const latest = await prisma.growth.findFirst({
       where: { babyId },
@@ -226,14 +199,7 @@ export class GrowthService {
 
   // Calcular estatísticas de crescimento
   static async getGrowthStats(caregiverId: number, babyId: number) {
-    // Verificar acesso ao bebê
-    const hasAccess = await prisma.caregiverBaby.findFirst({
-      where: { babyId, caregiverId },
-    });
-
-    if (!hasAccess) {
-      throw AppError.forbidden('Você não tem acesso a este bebê');
-    }
+    await requireBabyAccessByCaregiverId(caregiverId, babyId);
 
     // Buscar todas as medições ordenadas por data
     const records = await prisma.growth.findMany({

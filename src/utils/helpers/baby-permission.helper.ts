@@ -148,3 +148,61 @@ export async function canAddOwner(babyId: number): Promise<boolean> {
   const count = await countActiveOwners(babyId);
   return count < 2;
 }
+
+/**
+ * Verifica acesso ao bebê usando caregiverId (usado pelos services legados).
+ * Checa CaregiverBaby (legado) + BabyMember (novo) via userId do caregiver.
+ */
+export async function hasBabyAccessByCaregiverId(caregiverId: number, babyId: number): Promise<boolean> {
+  const legacyLink = await prisma.caregiverBaby.findFirst({
+    where: { babyId, caregiverId }
+  });
+  if (legacyLink) return true;
+
+  const caregiver = await prisma.caregiver.findUnique({
+    where: { id: caregiverId },
+    select: { userId: true }
+  });
+  if (!caregiver) return false;
+
+  return hasBabyAccess(caregiver.userId, babyId);
+}
+
+/**
+ * Garante acesso ao bebê usando caregiverId, lança erro caso contrário.
+ * Drop-in replacement para os checks inline de caregiverBaby.findFirst nos services.
+ */
+export async function requireBabyAccessByCaregiverId(caregiverId: number, babyId: number): Promise<void> {
+  const hasAccess = await hasBabyAccessByCaregiverId(caregiverId, babyId);
+  if (!hasAccess) {
+    throw AppError.forbidden('Você não tem acesso a este bebê');
+  }
+}
+
+/**
+ * Retorna os IDs dos bebês acessíveis por um caregiver (legado + novo sistema).
+ */
+export async function getBabyIdsByCaregiverId(caregiverId: number): Promise<number[]> {
+  const caregiver = await prisma.caregiver.findUnique({
+    where: { id: caregiverId },
+    select: { userId: true }
+  });
+  if (!caregiver) return [];
+
+  const legacyBabies = await prisma.caregiverBaby.findMany({
+    where: { caregiverId },
+    select: { babyId: true }
+  });
+
+  const memberBabies = await prisma.babyMember.findMany({
+    where: { userId: caregiver.userId, status: BabyMemberStatus.ACTIVE },
+    select: { babyId: true }
+  });
+
+  const allIds = new Set([
+    ...legacyBabies.map(b => b.babyId),
+    ...memberBabies.map(b => b.babyId)
+  ]);
+
+  return Array.from(allIds);
+}
