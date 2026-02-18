@@ -21,9 +21,8 @@ export function getDateRange(days: number): { start: Date; end: Date } {
 }
 
 export function get24hRange(): { start: Date; end: Date } {
-  const end = new Date();
-  const start = subDays(end, 1);
-  return { start, end };
+  const now = new Date();
+  return { start: startOfDay(now), end: endOfDay(now) };
 }
 
 export function calculateDurationSeconds(startTime: Date, endTime: Date): number {
