@@ -368,6 +368,7 @@ model RoutineLog {
   notes           String?
   meta            Json?       @db.JsonB
   createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime?   @updatedAt @map("updated_at")
   
   baby            Baby        @relation(fields: [babyId], references: [id], onDelete: Cascade)
   
