@@ -61,6 +61,7 @@ export class StatsController {
           count: stats.feedingCount24h || 0,
           totalMinutes: stats.totalFeedingMinutes24h || 0,
           complementMl: stats.totalComplementMl24h || 0,
+          bottleMl: stats.totalBottleMl24h || 0,
           breastSideDistribution: stats.breastSideDistribution,
         },
         sleep: {
