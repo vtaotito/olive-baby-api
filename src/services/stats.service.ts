@@ -63,6 +63,7 @@ export class StatsService {
       feedingCountsPerDay: this.calculateCountsPerDay(routines, 'FEEDING', start, days),
       feedingMinutesPerDay: this.calculateFeedingMinutesPerDay(routines, start, days),
       breastSideDistribution: this.calculateBreastSideDistribution(routines24h),
+      lastFeedingTime: this.getLastRoutineTime(routines24h, 'FEEDING'),
 
       // Complemento
       totalComplementMl24h: this.calculateComplementMl(routines24h),
@@ -546,6 +547,7 @@ export class StatsService {
       feedingCountsPerDay: this.calculateCountsPerDay(routines, 'FEEDING', start, days),
       feedingMinutesPerDay: this.calculateFeedingMinutesPerDay(routines, start, days),
       breastSideDistribution: this.calculateBreastSideDistribution(routines24h),
+      lastFeedingTime: this.getLastRoutineTime(routines24h, 'FEEDING'),
 
       // Complemento
       totalComplementMl24h: this.calculateComplementMl(routines24h),
@@ -674,5 +676,12 @@ export class StatsService {
         total: totalBreastMilk + totalFormula + totalMixed,
       },
     };
+  }
+
+  private static getLastRoutineTime(routines: { routineType: string; startTime: Date }[], type: string): string | null {
+    const filtered = routines.filter(r => r.routineType === type);
+    if (filtered.length === 0) return null;
+    const last = filtered.reduce((a, b) => (a.startTime > b.startTime ? a : b));
+    return last.startTime.toISOString();
   }
 }

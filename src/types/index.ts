@@ -102,6 +102,7 @@ export interface BabyStats {
   feedingCountsPerDay: number[];
   feedingMinutesPerDay: number[];
   breastSideDistribution: { left: number; right: number; both: number };
+  lastFeedingTime: string | null;
   
   // Complemento
   totalComplementMl24h: number;
