@@ -916,10 +916,36 @@ export class AdminService {
     }
 
     const oldRole = user.role;
+    const isProfessional = newRole === 'PEDIATRICIAN' || newRole === 'SPECIALIST';
 
-    await prisma.user.update({
-      where: { id: targetUserId },
-      data: { role: newRole },
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: targetUserId },
+        data: { role: newRole },
+      });
+
+      if (isProfessional) {
+        const existingProf = await tx.professional.findUnique({
+          where: { userId: targetUserId },
+        });
+        if (!existingProf) {
+          const caregiver = await tx.caregiver.findUnique({ where: { userId: targetUserId } });
+          await tx.professional.create({
+            data: {
+              userId: targetUserId,
+              fullName: caregiver?.fullName || user.email.split('@')[0],
+              email: user.email,
+              specialty: newRole === 'SPECIALIST' ? 'Especialista' : 'Pediatria',
+              phone: caregiver?.phone,
+              city: caregiver?.city,
+              state: caregiver?.state,
+              country: caregiver?.country || 'BR',
+              registrationSource: 'SELF_REGISTERED',
+              status: 'ACTIVE',
+            },
+          });
+        }
+      }
     });
 
     // Log audit event
