@@ -259,15 +259,28 @@ export async function acceptPatientInvite(
     throw new Error('Selecione pelo menos um bebê para compartilhar');
   }
 
-  const userCaregiverBabies = await prisma.caregiverBaby.findMany({
-    where: {
-      caregiver: { userId },
-      babyId: { in: babyIds },
-    },
-    select: { babyId: true },
-  });
+  const [caregiverBabies, memberBabies] = await Promise.all([
+    prisma.caregiverBaby.findMany({
+      where: {
+        caregiver: { userId },
+        babyId: { in: babyIds },
+      },
+      select: { babyId: true },
+    }),
+    prisma.babyMember.findMany({
+      where: {
+        userId,
+        babyId: { in: babyIds },
+        status: 'ACTIVE',
+      },
+      select: { babyId: true },
+    }),
+  ]);
 
-  const validBabyIds = userCaregiverBabies.map(cb => cb.babyId);
+  const validBabyIds = [...new Set([
+    ...caregiverBabies.map(cb => cb.babyId),
+    ...memberBabies.map(bm => bm.babyId),
+  ])];
   if (validBabyIds.length === 0) {
     throw new Error('Nenhum dos bebês selecionados pertence ao seu perfil');
   }

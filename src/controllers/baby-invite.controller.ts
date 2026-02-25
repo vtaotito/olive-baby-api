@@ -360,7 +360,12 @@ export class BabyInviteController {
         };
       });
 
-      // Formatando convites de paciente (profissional → pai)
+      const specialtyToRole: Record<string, string> = {
+        'Pediatria': 'PEDIATRICIAN', 'Pediatra': 'PEDIATRICIAN', 'PEDIATRICIAN': 'PEDIATRICIAN',
+        'Obstetra': 'OBGYN', 'Ginecologista': 'OBGYN', 'OBGYN': 'OBGYN',
+        'Consultora de Amamentação': 'LACTATION_CONSULTANT', 'LACTATION_CONSULTANT': 'LACTATION_CONSULTANT',
+      };
+
       const formattedPatientInvites = patientInvites.map((inv: any) => ({
         id: inv.id,
         inviteType: 'PATIENT_INVITE' as const,
@@ -368,7 +373,7 @@ export class BabyInviteController {
         babyName: inv.babyName || null,
         babyBirthDate: null,
         memberType: 'PROFESSIONAL' as const,
-        role: 'PEDIATRICIAN',
+        role: specialtyToRole[inv.professional?.specialty] || 'PEDIATRICIAN',
         invitedName: inv.patientName,
         message: inv.message,
         inviterEmail: inv.professional.email,
@@ -413,7 +418,9 @@ export class BabyInviteController {
       const inviteId = parseInt(req.params.inviteId, 10);
       const inviteType = (req.query.type as string || req.body.inviteType || 'FAMILY').toUpperCase();
 
-      if (inviteType === 'PROFESSIONAL') {
+      if (inviteType === 'PATIENT_INVITE') {
+        await patientInviteService.rejectPatientInvite(inviteId, req.user.email);
+      } else if (inviteType === 'PROFESSIONAL') {
         await professionalService.rejectProfessionalInvite(inviteId, req.user.email);
       } else {
         await babyInviteService.rejectInvite(inviteId, req.user.email);
