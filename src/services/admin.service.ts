@@ -1075,13 +1075,14 @@ export class AdminService {
       await tx.apiEvent.deleteMany({ where: { userId: targetUserId } });
       await tx.passwordReset.deleteMany({ where: { userId: targetUserId } });
       await tx.subscription.deleteMany({ where: { userId: targetUserId } });
-      await tx.babyInvite.deleteMany({ where: { createdById: targetUserId } });
+      await tx.babyInvite.deleteMany({ where: { createdByUserId: targetUserId } });
       await tx.userSettings.deleteMany({ where: { userId: targetUserId } });
       await tx.aiChatSession.deleteMany({ where: { userId: targetUserId } });
       await tx.professional.deleteMany({ where: { userId: targetUserId } });
 
+      await tx.babyMember.deleteMany({ where: { userId: targetUserId } });
+
       if (user.caregiver) {
-        await tx.babyMember.deleteMany({ where: { caregiverId: user.caregiver.id } });
         await tx.caregiverBaby.deleteMany({ where: { caregiverId: user.caregiver.id } });
         await tx.caregiver.delete({ where: { id: user.caregiver.id } });
       }
