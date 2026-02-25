@@ -22,6 +22,7 @@ interface RegisterInput {
   city?: string;
   state?: string;
   country?: string;
+  role?: 'PARENT' | 'CAREGIVER' | 'PEDIATRICIAN' | 'SPECIALIST';
 }
 
 interface LoginInput {
@@ -83,28 +84,53 @@ export class AuthService {
     // Hash da senha
     const passwordHash = await bcrypt.hash(input.password, SALT_ROUNDS);
 
-    // Criar usuário e cuidador em transação
-    const user = await prisma.user.create({
-      data: {
-        email: input.email.toLowerCase(),
-        passwordHash,
-        role: UserRole.PARENT,
-        caregiver: {
-          create: {
+    const isProfessional = input.role === 'PEDIATRICIAN' || input.role === 'SPECIALIST';
+    const userRole = isProfessional
+      ? (input.role === 'SPECIALIST' ? UserRole.SPECIALIST : UserRole.PEDIATRICIAN)
+      : (input.role === 'CAREGIVER' ? UserRole.CAREGIVER : UserRole.PARENT);
+
+    const user = await prisma.$transaction(async (tx) => {
+      const newUser = await tx.user.create({
+        data: {
+          email: input.email.toLowerCase(),
+          passwordHash,
+          role: userRole,
+          caregiver: {
+            create: {
+              fullName: input.fullName,
+              cpf: cleanedCpf,
+              phone: input.phone,
+              dateOfBirth: input.dateOfBirth,
+              gender: input.gender,
+              city: input.city,
+              state: input.state,
+              country: input.country || 'BR',
+            },
+          },
+        },
+        include: {
+          caregiver: true,
+        },
+      });
+
+      if (isProfessional) {
+        await tx.professional.create({
+          data: {
+            userId: newUser.id,
             fullName: input.fullName,
-            cpf: cleanedCpf,
+            email: input.email.toLowerCase(),
+            specialty: input.role === 'SPECIALIST' ? 'Especialista' : 'Pediatria',
             phone: input.phone,
-            dateOfBirth: input.dateOfBirth,
-            gender: input.gender,
             city: input.city,
             state: input.state,
             country: input.country || 'BR',
+            registrationSource: 'SELF_REGISTERED',
+            status: 'ACTIVE',
           },
-        },
-      },
-      include: {
-        caregiver: true,
-      },
+        });
+      }
+
+      return newUser;
     });
 
     // Gerar tokens

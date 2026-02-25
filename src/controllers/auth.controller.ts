@@ -10,13 +10,14 @@ export const registerSchema = z.object({
   email: z.string().email('Email inválido'),
   password: z.string().min(8, 'Senha deve ter no mínimo 8 caracteres'),
   fullName: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
-  cpf: z.string().optional().transform(val => val && val.length >= 11 ? val : undefined), // CPF opcional (pode ser preenchido depois no perfil)
+  cpf: z.string().optional().transform(val => val && val.length >= 11 ? val : undefined),
   phone: z.string().optional(),
   dateOfBirth: z.string().datetime().optional().transform(val => val ? new Date(val) : undefined),
   gender: z.enum(['FEMALE', 'MALE', 'OTHER', 'NOT_INFORMED']).optional(),
   city: z.string().optional(),
   state: z.string().length(2, 'Estado deve ter 2 caracteres').optional(),
   country: z.string().length(2, 'País deve ter 2 caracteres').default('BR'),
+  role: z.enum(['PARENT', 'CAREGIVER', 'PEDIATRICIAN', 'SPECIALIST']).optional().default('PARENT'),
 });
 
 export const loginSchema = z.object({
