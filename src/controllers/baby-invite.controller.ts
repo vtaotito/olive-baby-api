@@ -3,6 +3,7 @@ import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest, ApiResponse } from '../types';
 import * as babyInviteService from '../services/baby-invite.service';
 import * as professionalService from '../services/professional.service';
+import * as patientInviteService from '../services/patient-invite.service';
 import * as emailService from '../services/email.service';
 import { AppError } from '../utils/errors/AppError';
 import { logger } from '../config/logger';
@@ -310,6 +311,9 @@ export class BabyInviteController {
       // Buscar convites de profissionais (Professional)
       const professionalInvites = await professionalService.getPendingProfessionalInvitesForUser(req.user.email);
 
+      // Buscar convites de paciente (PatientInvite - enviados por profissionais)
+      const patientInvites = await patientInviteService.getReceivedPatientInvites(req.user.email);
+
       // Formatando convites de familiares
       const formattedFamilyInvites = familyInvites.map(invite => ({
         id: invite.id,
@@ -356,8 +360,30 @@ export class BabyInviteController {
         };
       });
 
+      // Formatando convites de paciente (profissional → pai)
+      const formattedPatientInvites = patientInvites.map((inv: any) => ({
+        id: inv.id,
+        inviteType: 'PATIENT_INVITE' as const,
+        babyId: null,
+        babyName: inv.babyName || null,
+        babyBirthDate: null,
+        memberType: 'PROFESSIONAL' as const,
+        role: 'PEDIATRICIAN',
+        invitedName: inv.patientName,
+        message: inv.message,
+        inviterEmail: inv.professional.email,
+        inviterName: inv.professional.fullName,
+        expiresAt: inv.expiresAt,
+        createdAt: inv.createdAt,
+        specialty: inv.professional.specialty,
+        professionalCRM: inv.professional.crmNumber && inv.professional.crmState
+          ? `CRM ${inv.professional.crmState} ${inv.professional.crmNumber}`
+          : null,
+        requiresBabySelection: true,
+      }));
+
       // Combinar e ordenar por data de criação (mais recentes primeiro)
-      const allInvites = [...formattedFamilyInvites, ...formattedProfessionalInvites]
+      const allInvites = [...formattedFamilyInvites, ...formattedProfessionalInvites, ...formattedPatientInvites]
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
       res.json({

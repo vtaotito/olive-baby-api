@@ -4,6 +4,7 @@ import { randomBytes } from 'crypto';
 import { prisma } from '../config/database';
 import { sendPatientInviteEmail } from './email.service';
 import { logger } from '../config/logger';
+import { ProfessionalRole } from '@prisma/client';
 
 interface CreateInviteData {
   patientName: string;
@@ -57,6 +58,12 @@ export async function createPatientInvite(professionalId: number, data: CreateIn
     },
   });
 
+  // Check if user already has an account
+  const existingUser = await prisma.user.findUnique({
+    where: { email: data.email.toLowerCase().trim() },
+    select: { id: true },
+  });
+
   // Send email
   try {
     await sendPatientInviteEmail({
@@ -70,10 +77,10 @@ export async function createPatientInvite(professionalId: number, data: CreateIn
       babyName: data.babyName?.trim(),
       message: data.message?.trim(),
       inviteToken: token,
+      userExists: !!existingUser,
     });
   } catch (error) {
     logger.error('Failed to send patient invite email', { error, inviteId: invite.id });
-    // Don't fail the invite creation if email fails
   }
 
   logger.info('Patient invite created', {
@@ -176,6 +183,154 @@ export async function cancelPatientInvite(professionalId: number, inviteId: numb
     where: { id: inviteId },
     data: { status: 'CANCELLED' },
   });
+
+  return { success: true };
+}
+
+/**
+ * Get pending patient invites received by a user (matched by email)
+ */
+export async function getReceivedPatientInvites(userEmail: string) {
+  const invites = await prisma.patientInvite.findMany({
+    where: {
+      email: { equals: userEmail.toLowerCase().trim(), mode: 'insensitive' },
+      status: 'PENDING',
+      expiresAt: { gt: new Date() },
+    },
+    include: {
+      professional: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          specialty: true,
+          crmNumber: true,
+          crmState: true,
+          phone: true,
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return invites;
+}
+
+const SPECIALTY_TO_ROLE: Record<string, ProfessionalRole> = {
+  'Pediatria': ProfessionalRole.PEDIATRICIAN,
+  'Pediatra': ProfessionalRole.PEDIATRICIAN,
+  'PEDIATRICIAN': ProfessionalRole.PEDIATRICIAN,
+  'Obstetra': ProfessionalRole.OBGYN,
+  'Ginecologista': ProfessionalRole.OBGYN,
+  'OBGYN': ProfessionalRole.OBGYN,
+  'Consultora de Amamentação': ProfessionalRole.LACTATION_CONSULTANT,
+  'LACTATION_CONSULTANT': ProfessionalRole.LACTATION_CONSULTANT,
+};
+
+/**
+ * Accept a patient invite, linking selected babies to the professional
+ */
+export async function acceptPatientInvite(
+  inviteId: number,
+  userId: number,
+  userEmail: string,
+  babyIds: number[]
+) {
+  const invite = await prisma.patientInvite.findFirst({
+    where: {
+      id: inviteId,
+      email: { equals: userEmail.toLowerCase().trim(), mode: 'insensitive' },
+      status: 'PENDING',
+    },
+    include: {
+      professional: { select: { id: true, specialty: true, fullName: true } },
+    },
+  });
+
+  if (!invite) {
+    throw new Error('Convite não encontrado ou já processado');
+  }
+
+  if (invite.expiresAt < new Date()) {
+    throw new Error('Este convite expirou');
+  }
+
+  if (babyIds.length === 0) {
+    throw new Error('Selecione pelo menos um bebê para compartilhar');
+  }
+
+  const userCaregiverBabies = await prisma.caregiverBaby.findMany({
+    where: {
+      caregiver: { userId },
+      babyId: { in: babyIds },
+    },
+    select: { babyId: true },
+  });
+
+  const validBabyIds = userCaregiverBabies.map(cb => cb.babyId);
+  if (validBabyIds.length === 0) {
+    throw new Error('Nenhum dos bebês selecionados pertence ao seu perfil');
+  }
+
+  const role = SPECIALTY_TO_ROLE[invite.professional.specialty] || ProfessionalRole.PEDIATRICIAN;
+
+  await prisma.$transaction(async (tx) => {
+    for (const babyId of validBabyIds) {
+      const existing = await tx.babyProfessional.findFirst({
+        where: { babyId, professionalId: invite.professionalId, role },
+      });
+      if (!existing) {
+        await tx.babyProfessional.create({
+          data: {
+            babyId,
+            professionalId: invite.professionalId,
+            role,
+          },
+        });
+      }
+    }
+
+    await tx.patientInvite.update({
+      where: { id: inviteId },
+      data: { status: 'ACCEPTED', acceptedAt: new Date() },
+    });
+  });
+
+  logger.info('Patient invite accepted', {
+    inviteId,
+    userId,
+    professionalId: invite.professionalId,
+    babyIds: validBabyIds,
+  });
+
+  return {
+    professionalName: invite.professional.fullName,
+    babiesLinked: validBabyIds.length,
+  };
+}
+
+/**
+ * Reject a patient invite
+ */
+export async function rejectPatientInvite(inviteId: number, userEmail: string) {
+  const invite = await prisma.patientInvite.findFirst({
+    where: {
+      id: inviteId,
+      email: { equals: userEmail.toLowerCase().trim(), mode: 'insensitive' },
+      status: 'PENDING',
+    },
+  });
+
+  if (!invite) {
+    throw new Error('Convite não encontrado ou já processado');
+  }
+
+  await prisma.patientInvite.update({
+    where: { id: inviteId },
+    data: { status: 'CANCELLED' },
+  });
+
+  logger.info('Patient invite rejected', { inviteId, email: userEmail.substring(0, 3) + '***' });
 
   return { success: true };
 }

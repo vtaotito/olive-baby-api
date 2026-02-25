@@ -616,9 +616,17 @@ export async function sendPatientInviteEmail(data: {
   babyName?: string;
   message?: string;
   inviteToken: string;
+  userExists?: boolean;
 }) {
-  const registerUrl = `${env.FRONTEND_URL}/register?ref=invite&token=${data.inviteToken}`;
   const specialtyLabel = professionalRoleLabelsMap[data.professionalSpecialty] || data.professionalSpecialty;
+
+  const actionUrl = data.userExists
+    ? `${env.FRONTEND_URL}/login?ref=invite&token=${data.inviteToken}`
+    : `${env.FRONTEND_URL}/register?ref=invite&token=${data.inviteToken}`;
+  const actionLabel = data.userExists ? 'Acessar minha conta' : 'Criar minha conta grátis';
+  const actionDescription = data.userExists
+    ? `Acesse sua conta no OlieCare para ver e aceitar o convite do profissional:`
+    : `Crie sua conta gratuitamente e comece a acompanhar o desenvolvimento do seu bebê:`;
 
   const content = `
     <div class="header">
@@ -637,27 +645,34 @@ export async function sendPatientInviteEmail(data: {
         </div>
       ` : ''}
 
-      <div class="info-box">
-        <p style="margin: 0 0 10px; font-weight: 600; font-size: 15px;">📱 O que é o OlieCare?</p>
-        <p style="margin: 0 0 12px; font-size: 14px;">O OlieCare é uma plataforma completa para acompanhar o desenvolvimento do seu bebê, criando uma conexão direta entre você e os profissionais de saúde.</p>
-        <ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 2;">
-          <li>📊 <strong>Registro de rotinas</strong> — alimentação, sono, fraldas e banho</li>
-          <li>📈 <strong>Curvas de crescimento</strong> — peso, comprimento e perímetro cefálico com referências da OMS</li>
-          <li>🏆 <strong>Marcos de desenvolvimento</strong> — acompanhe cada conquista do seu bebê</li>
-          <li>💉 <strong>Carteira de vacinação</strong> — controle completo com alertas</li>
-          <li>👨‍⚕️ <strong>Portal do profissional</strong> — seu médico acompanha tudo em tempo real</li>
-          <li>🤖 <strong>Assistente com IA</strong> — tire dúvidas sobre o dia a dia do bebê</li>
-          <li>📋 <strong>Consultas e receitas</strong> — histórico médico completo e organizado</li>
-        </ul>
-      </div>
+      ${data.userExists ? `
+        <div class="info-box">
+          <p style="margin: 0 0 10px; font-weight: 600; font-size: 15px;">✅ Você já tem uma conta no OlieCare!</p>
+          <p style="margin: 0; font-size: 14px;">Faça login para visualizar o convite recebido na sua área de Equipe. Você poderá escolher quais bebês deseja compartilhar com o(a) profissional.</p>
+        </div>
+      ` : `
+        <div class="info-box">
+          <p style="margin: 0 0 10px; font-weight: 600; font-size: 15px;">📱 O que é o OlieCare?</p>
+          <p style="margin: 0 0 12px; font-size: 14px;">O OlieCare é uma plataforma completa para acompanhar o desenvolvimento do seu bebê, criando uma conexão direta entre você e os profissionais de saúde.</p>
+          <ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 2;">
+            <li>📊 <strong>Registro de rotinas</strong> — alimentação, sono, fraldas e banho</li>
+            <li>📈 <strong>Curvas de crescimento</strong> — peso, comprimento e perímetro cefálico com referências da OMS</li>
+            <li>🏆 <strong>Marcos de desenvolvimento</strong> — acompanhe cada conquista do seu bebê</li>
+            <li>💉 <strong>Carteira de vacinação</strong> — controle completo com alertas</li>
+            <li>👨‍⚕️ <strong>Portal do profissional</strong> — seu médico acompanha tudo em tempo real</li>
+            <li>🤖 <strong>Assistente com IA</strong> — tire dúvidas sobre o dia a dia do bebê</li>
+            <li>📋 <strong>Consultas e receitas</strong> — histórico médico completo e organizado</li>
+          </ul>
+        </div>
+      `}
 
-      <p style="font-size: 15px;">Crie sua conta gratuitamente e comece a acompanhar o desenvolvimento do seu bebê:</p>
+      <p style="font-size: 15px;">${actionDescription}</p>
 
       <div style="text-align: center; margin: 25px 0;">
-        <a href="${registerUrl}" class="button" style="font-size: 16px; padding: 16px 36px;">Criar minha conta grátis</a>
+        <a href="${actionUrl}" class="button" style="font-size: 16px; padding: 16px 36px;">${actionLabel}</a>
       </div>
 
-      <p style="font-size: 12px; color: #666; word-break: break-all;">Ou copie este link: ${registerUrl}</p>
+      <p style="font-size: 12px; color: #666; word-break: break-all;">Ou copie este link: ${actionUrl}</p>
 
       <div style="background: #f0f9f3; border-radius: 8px; padding: 15px; margin: 20px 0; text-align: center;">
         <p style="margin: 0; font-size: 13px; color: #4a7c59;">

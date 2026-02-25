@@ -5,6 +5,12 @@ import { authenticate, requireProfessional } from '../middlewares/auth.middlewar
 
 const router = Router();
 
+// Routes for any authenticated user (patients receiving invites)
+router.get('/received', authenticate, patientInviteController.received);
+router.post('/:id/accept', authenticate, patientInviteController.accept);
+router.post('/:id/reject', authenticate, patientInviteController.reject);
+
+// Routes for professionals (sending invites)
 router.get('/', authenticate, requireProfessional, patientInviteController.list);
 router.post('/', authenticate, requireProfessional, patientInviteController.create);
 router.post('/:id/resend', authenticate, requireProfessional, patientInviteController.resend);
