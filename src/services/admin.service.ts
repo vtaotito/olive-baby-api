@@ -1025,5 +1025,105 @@ export class AdminService {
       },
     };
   }
+
+  /**
+   * Delete a user and all related data
+   */
+  static async deleteUser(
+    adminUserId: number,
+    targetUserId: number,
+    req?: any
+  ) {
+    const user = await prisma.user.findUnique({
+      where: { id: targetUserId },
+      include: { caregiver: true },
+    });
+
+    if (!user) {
+      throw AppError.notFound('Usuário não encontrado');
+    }
+
+    if (user.role === 'ADMIN') {
+      const adminCount = await prisma.user.count({ where: { role: 'ADMIN' } });
+      if (adminCount <= 1) {
+        throw AppError.forbidden('Não é possível excluir o último administrador');
+      }
+    }
+
+    if (adminUserId === targetUserId) {
+      throw AppError.forbidden('Você não pode excluir sua própria conta por aqui');
+    }
+
+    await AuditService.log({
+      userId: adminUserId,
+      action: 'ADMIN_USER_BLOCKED' as any,
+      targetType: 'user',
+      targetId: targetUserId,
+      metadata: {
+        targetEmail: user.email,
+        action: 'DELETE',
+        fullName: user.caregiver?.fullName,
+      },
+      req,
+    });
+
+    await prisma.$transaction(async (tx) => {
+      await tx.refreshToken.deleteMany({ where: { userId: targetUserId } });
+      await tx.deviceToken.deleteMany({ where: { userId: targetUserId } });
+      await tx.notification.deleteMany({ where: { userId: targetUserId } });
+      await tx.auditEvent.deleteMany({ where: { userId: targetUserId } });
+      await tx.apiEvent.deleteMany({ where: { userId: targetUserId } });
+      await tx.passwordReset.deleteMany({ where: { userId: targetUserId } });
+      await tx.subscription.deleteMany({ where: { userId: targetUserId } });
+      await tx.babyInvite.deleteMany({ where: { createdById: targetUserId } });
+      await tx.userSettings.deleteMany({ where: { userId: targetUserId } });
+      await tx.aiChatSession.deleteMany({ where: { userId: targetUserId } });
+      await tx.professional.deleteMany({ where: { userId: targetUserId } });
+
+      if (user.caregiver) {
+        await tx.babyMember.deleteMany({ where: { caregiverId: user.caregiver.id } });
+        await tx.caregiverBaby.deleteMany({ where: { caregiverId: user.caregiver.id } });
+        await tx.caregiver.delete({ where: { id: user.caregiver.id } });
+      }
+
+      await tx.user.delete({ where: { id: targetUserId } });
+    });
+
+    return { success: true, deletedEmail: user.email };
+  }
+
+  /**
+   * Get audit trail for a specific user (actions performed ON or BY this user)
+   */
+  static async getUserAuditTrail(
+    targetUserId: number,
+    limit: number = 30
+  ) {
+    const events = await prisma.auditEvent.findMany({
+      where: {
+        OR: [
+          { userId: targetUserId },
+          { targetId: targetUserId, targetType: 'user' },
+        ],
+      },
+      include: {
+        user: {
+          select: { id: true, email: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+
+    return events.map(e => ({
+      id: e.id,
+      action: e.action,
+      performedBy: e.user ? { id: e.user.id, email: e.user.email } : null,
+      targetId: e.targetId,
+      metadata: e.metadata,
+      ipAddress: e.ipAddress,
+      createdAt: e.createdAt.toISOString(),
+    }));
+  }
 }
 

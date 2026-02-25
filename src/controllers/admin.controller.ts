@@ -362,6 +362,56 @@ export class AdminController {
   }
 
   /**
+   * DELETE /admin/users/:id
+   */
+  static async deleteUser(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const targetUserId = parseInt(req.params.id, 10);
+
+      const result = await AdminService.deleteUser(
+        req.user!.userId,
+        targetUserId,
+        req
+      );
+
+      res.json({
+        success: true,
+        message: `Usuário ${result.deletedEmail} excluído com sucesso`,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /admin/users/:id/audit
+   */
+  static async getUserAuditTrail(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const targetUserId = parseInt(req.params.id, 10);
+      const limit = parseInt(req.query.limit as string, 10) || 30;
+
+      const events = await AdminService.getUserAuditTrail(targetUserId, limit);
+
+      res.json({
+        success: true,
+        data: events,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * GET /admin/plans
    * Get available plans
    */

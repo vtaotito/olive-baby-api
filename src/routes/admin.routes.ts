@@ -83,6 +83,12 @@ router.patch(
   AdminController.changeUserRole
 );
 
+// DELETE /admin/users/:id - Delete user
+router.delete('/users/:id', AdminController.deleteUser);
+
+// GET /admin/users/:id/audit - Audit trail for user
+router.get('/users/:id/audit', AdminController.getUserAuditTrail);
+
 // POST /admin/users/:id/impersonate - Impersonate user (support)
 router.post('/users/:id/impersonate', AdminController.impersonateUser);
 
