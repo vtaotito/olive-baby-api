@@ -1,4 +1,4 @@
-﻿# ðŸ“‹ InstruÃ§Ãµes de Deploy na VPS - Passo a Passo
+# ðŸ“‹ InstruÃ§Ãµes de Deploy na VPS - Passo a Passo
 
 ## âœ… Arquivos Preparados
 
@@ -19,8 +19,8 @@ Os seguintes arquivos foram criados e estÃ£o prontos para deploy:
 #### Passo 1: Conectar na VPS
 
 ```bash
-ssh usuario@oliecare.cloud
-# ou use o IP da VPS
+ssh adm@api.oliecare.cloud
+# Fingerprint (ED25519): SHA256:UfrWgvwDl+Lj8dVPDJpRGllfyTwx5g8giypY0JWFQjo
 ```
 
 #### Passo 2: Preparar Ambiente
@@ -37,10 +37,10 @@ cd /docker/olive-baby
 
 ```powershell
 # Backend
-scp "C:\Users\Vitor A. Tito\Documents\GPTO\OliverBaby\olive-baby-api\olive-baby-api-ai_20251213_082547.zip" usuario@oliecare.cloud:/docker/olive-baby/
+scp "C:\Users\Vitor A. Tito\Documents\GPTO\OliverBaby\olive-baby-api\olive-baby-api-ai_20251213_082547.zip" adm@api.oliecare.cloud:/docker/olive-baby/
 
 # Frontend  
-scp "C:\Users\Vitor A. Tito\Documents\GPTO\OliverBaby\olive-baby-web\olivebaby-web-ai-deploy-20251213_082629.zip" usuario@oliecare.cloud:/docker/olive-baby/
+scp "C:\Users\Vitor A. Tito\Documents\GPTO\OliverBaby\olive-baby-web\olivebaby-web-ai-deploy-20251213_082629.zip" adm@api.oliecare.cloud:/docker/olive-baby/
 ```
 
 #### Passo 4: Na VPS - Extrair Backend

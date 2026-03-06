@@ -1,4 +1,4 @@
-﻿# ðŸš€ Deploy Manual na VPS - Olive Assistant
+# ðŸš€ Deploy Manual na VPS - Olive Assistant
 
 ## ðŸ“‹ Status
 
@@ -12,9 +12,8 @@
 ### 1. Conectar na VPS via SSH
 
 ```bash
-ssh usuario@oliecare.cloud
-# ou
-ssh usuario@IP_DA_VPS
+ssh adm@api.oliecare.cloud
+# Fingerprint: SHA256:UfrWgvwDl+Lj8dVPDJpRGllfyTwx5g8giypY0JWFQjo
 ```
 
 ### 2. Criar DiretÃ³rio de Trabalho
@@ -31,10 +30,10 @@ cd /docker/olive-baby
 
 ```powershell
 # Backend
-scp "C:\Users\Vitor A. Tito\Documents\GPTO\OliverBaby\olive-baby-api\olive-baby-api-ai_20251213_082547.zip" usuario@oliecare.cloud:/docker/olive-baby/
+scp "C:\Users\Vitor A. Tito\Documents\GPTO\OliverBaby\olive-baby-api\olive-baby-api-ai_20251213_082547.zip" adm@api.oliecare.cloud:/docker/olive-baby/
 
 # Frontend
-scp "C:\Users\Vitor A. Tito\Documents\GPTO\OliverBaby\olive-baby-web\olivebaby-web-ai-deploy-20251213_082629.zip" usuario@oliecare.cloud:/docker/olive-baby/
+scp "C:\Users\Vitor A. Tito\Documents\GPTO\OliverBaby\olive-baby-web\olivebaby-web-ai-deploy-20251213_082629.zip" adm@api.oliecare.cloud:/docker/olive-baby/
 ```
 
 **OpÃ§Ã£o B: Via SFTP/FTP Client**
