@@ -1,6 +1,7 @@
 // Olive Baby API - Admin Controller
 import { Response, NextFunction } from 'express';
 import { z } from 'zod';
+import { prisma } from '../config/database';
 import { AdminService } from '../services/admin.service';
 import { AdminAnalyticsService } from '../services/adminAnalytics.service';
 import { AdminSummaryService } from '../services/adminSummary.service';
@@ -101,6 +102,20 @@ export const opsSummaryQuerySchema = summaryWindowQuerySchema;
 export const testEmailSchema = z.object({
   email: z.string().email(),
   type: z.enum(['welcome', 'alert']).default('welcome'),
+});
+
+export const communicationsQuerySchema = z.object({
+  templateType: z.string().optional(),
+  channel: z.enum(['B2C', 'B2B', 'INTERNAL']).optional(),
+  from: z.string().optional(), // ISO date or datetime
+  to: z.string().optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(50),
+});
+
+export const communicationsVolumeQuerySchema = z.object({
+  range: z.enum(['7d', '30d', '90d']).optional().default('30d'),
+  groupBy: z.enum(['day', 'template', 'channel']).optional().default('day'),
 });
 
 // ==========================================
@@ -631,6 +646,112 @@ export class AdminController {
       res.json({
         success: true,
         data: summary,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /admin/communications
+   * List email communications (log) with filters and pagination
+   */
+  static async getCommunications(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { templateType, channel, from, to, page, limit } = communicationsQuerySchema.parse(req.query);
+      const skip = (page - 1) * limit;
+      const where: Record<string, unknown> = {};
+      if (templateType) where.templateType = templateType;
+      if (channel) where.channel = channel;
+      if (from || to) {
+        where.sentAt = {};
+        if (from) (where.sentAt as Record<string, Date>).gte = new Date(from);
+        if (to) (where.sentAt as Record<string, Date>).lte = new Date(to);
+      }
+      const [items, total] = await Promise.all([
+        prisma.emailCommunication.findMany({
+          where,
+          orderBy: { sentAt: 'desc' },
+          skip,
+          take: limit,
+        }),
+        prisma.emailCommunication.count({ where }),
+      ]);
+      res.setHeader('X-Total-Count', String(total));
+      res.json({
+        success: true,
+        data: { items, total, page, limit },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /admin/communications/volume
+   * Volumetria: agregado por dia, template ou canal
+   */
+  static async getCommunicationsVolume(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { range, groupBy } = communicationsVolumeQuerySchema.parse(req.query);
+      const days = range === '7d' ? 7 : range === '30d' ? 30 : 90;
+      const from = new Date();
+      from.setDate(from.getDate() - days);
+      from.setHours(0, 0, 0, 0);
+
+      if (groupBy === 'day') {
+        const raw = await prisma.$queryRaw<
+          { date: string; count: bigint }[]
+        >`
+          SELECT date_trunc('day', sent_at)::date::text AS date, COUNT(*)::bigint
+          FROM email_communications
+          WHERE sent_at >= ${from}
+          GROUP BY date_trunc('day', sent_at)
+          ORDER BY date ASC
+        `;
+        res.json({
+          success: true,
+          data: {
+            groupBy: 'day',
+            series: raw.map((r) => ({ date: r.date, count: Number(r.count) })),
+          },
+        });
+        return;
+      }
+      if (groupBy === 'template') {
+        const raw = await prisma.emailCommunication.groupBy({
+          by: ['templateType'],
+          where: { sentAt: { gte: from } },
+          _count: { id: true },
+        });
+        res.json({
+          success: true,
+          data: {
+            groupBy: 'template',
+            series: raw.map((r) => ({ templateType: r.templateType, count: r._count.id })),
+          },
+        });
+        return;
+      }
+      const raw = await prisma.emailCommunication.groupBy({
+        by: ['channel'],
+        where: { sentAt: { gte: from } },
+        _count: { id: true },
+      });
+      res.json({
+        success: true,
+        data: {
+          groupBy: 'channel',
+          series: raw.map((r) => ({ channel: r.channel, count: r._count.id })),
+        },
       });
     } catch (error) {
       next(error);

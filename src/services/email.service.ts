@@ -3,6 +3,7 @@
 import nodemailer from 'nodemailer';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
+import { prisma } from '../config/database';
 
 // ==========================================
 // Types
@@ -172,6 +173,47 @@ async function sendEmail(options: EmailOptions): Promise<boolean> {
   return sendViaSMTP(options);
 }
 
+/** Tipos de template para tracking (admin comunicações) */
+export const EMAIL_TEMPLATE_TYPES = {
+  PROFESSIONAL_INVITE: 'professional_invite',
+  BABY_INVITE: 'baby_invite',
+  PASSWORD_RESET: 'password_reset',
+  WELCOME: 'welcome',
+  ALERT: 'alert',
+  PAYMENT_CONFIRMATION: 'payment_confirmation',
+  SUBSCRIPTION_CANCELLED: 'subscription_cancelled',
+  PATIENT_INVITE: 'patient_invite',
+} as const;
+
+/** Canais: B2C (consumidor), B2B (profissional/clínica), INTERNAL (alertas) */
+export type EmailChannel = 'B2C' | 'B2B' | 'INTERNAL';
+
+/**
+ * Registra envio no banco para volumetria e tracking (admin).
+ * Não armazena e-mail completo; apenas domínio do destinatário para métricas.
+ */
+async function logEmailCommunication(
+  templateType: string,
+  channel: EmailChannel,
+  toEmail?: string | string[],
+  metadata?: Record<string, unknown>
+): Promise<void> {
+  try {
+    const emails = toEmail ? (Array.isArray(toEmail) ? toEmail : [toEmail]) : [];
+    const recipientDomain = emails.length > 0 ? (emails[0].split('@')[1] ?? null) : null;
+    await prisma.emailCommunication.create({
+      data: {
+        templateType,
+        channel,
+        recipientDomain,
+        metadata: metadata ?? {},
+      },
+    });
+  } catch (err) {
+    logger.warn('Email communication log failed (table may not exist yet)', { templateType, error: (err as Error).message });
+  }
+}
+
 // ==========================================
 // Email Templates
 // ==========================================
@@ -283,6 +325,7 @@ export async function sendProfessionalInvite(data: {
   if (!success) {
     throw new Error('Failed to send professional invite email');
   }
+  await logEmailCommunication(EMAIL_TEMPLATE_TYPES.PROFESSIONAL_INVITE, 'B2B', data.professionalEmail);
 }
 
 /**
@@ -383,6 +426,7 @@ export async function sendBabyInvite(data: {
   if (!success) {
     throw new Error('Failed to send baby invite email');
   }
+  await logEmailCommunication(EMAIL_TEMPLATE_TYPES.BABY_INVITE, 'B2C', data.emailInvited);
 }
 
 /**
@@ -435,6 +479,7 @@ export async function sendPasswordResetEmail(data: {
   logger.info('Password reset email sent', { 
     email: data.email.substring(0, 3) + '***',
   });
+  await logEmailCommunication(EMAIL_TEMPLATE_TYPES.PASSWORD_RESET, 'B2C', data.email);
 }
 
 /**
@@ -476,6 +521,7 @@ export async function sendWelcomeEmail(data: {
     subject: 'Bem-vindo ao Olive Baby! 🌿',
     html: wrapTemplate(content, 'Bem-vindo'),
   });
+  await logEmailCommunication(EMAIL_TEMPLATE_TYPES.WELCOME, 'B2C', data.email);
 }
 
 /**
@@ -524,7 +570,7 @@ export async function sendAlert(data: {
     subject: `[${data.level.toUpperCase()}] ${data.title} - Olive Baby`,
     html: wrapTemplate(content, 'Alerta do Sistema'),
   });
-
+  await logEmailCommunication(EMAIL_TEMPLATE_TYPES.ALERT, 'INTERNAL', alertEmail, { component: data.component, level: data.level });
   logger.info('Alert email sent', { level: data.level, component: data.component });
 }
 
@@ -569,6 +615,7 @@ export async function sendPaymentConfirmation(data: {
     subject: 'Pagamento Confirmado - Olive Baby Premium ✅',
     html: wrapTemplate(content, 'Pagamento Confirmado'),
   });
+  await logEmailCommunication(EMAIL_TEMPLATE_TYPES.PAYMENT_CONFIRMATION, 'B2C', data.email);
 }
 
 /**
@@ -601,6 +648,7 @@ export async function sendSubscriptionCancelled(data: {
     subject: 'Assinatura Cancelada - Olive Baby',
     html: wrapTemplate(content, 'Cancelamento'),
   });
+  await logEmailCommunication(EMAIL_TEMPLATE_TYPES.SUBSCRIPTION_CANCELLED, 'B2C', data.email);
 }
 
 /**
@@ -695,7 +743,7 @@ export async function sendPatientInviteEmail(data: {
   if (!success) {
     throw new Error('Failed to send patient invite email');
   }
-
+  await logEmailCommunication(EMAIL_TEMPLATE_TYPES.PATIENT_INVITE, 'B2B', data.patientEmail);
   logger.info('Patient invite email sent', {
     email: data.patientEmail.substring(0, 3) + '***',
     professional: data.professionalName,

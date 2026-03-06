@@ -19,6 +19,8 @@ import {
   weeklySummaryQuerySchema,
   opsSummaryQuerySchema,
   testEmailSchema,
+  communicationsQuerySchema,
+  communicationsVolumeQuerySchema,
 } from '../controllers/admin.controller';
 
 const router = Router();
@@ -170,6 +172,24 @@ router.get(
   '/summary/ops',
   validateQuery(opsSummaryQuerySchema),
   AdminController.getOpsSummary
+);
+
+// ==========================================
+// Communications (emails tracking / volumetria)
+// ==========================================
+
+// GET /admin/communications - List email sends with filters
+router.get(
+  '/communications',
+  validateQuery(communicationsQuerySchema),
+  AdminController.getCommunications
+);
+
+// GET /admin/communications/volume - Volumetria por dia, template ou canal
+router.get(
+  '/communications/volume',
+  validateQuery(communicationsVolumeQuerySchema),
+  AdminController.getCommunicationsVolume
 );
 
 // ==========================================

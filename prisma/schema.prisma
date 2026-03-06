@@ -789,6 +789,25 @@ model BillingEvent {
 }
 
 // ==========================================
+// EMAIL COMMUNICATIONS (tracking / volumetria)
+// ==========================================
+
+model EmailCommunication {
+  id           Int      @id @default(autoincrement())
+  templateType String   @map("template_type") @db.VarChar(50)  // professional_invite | baby_invite | password_reset | welcome | alert | payment_confirmation | subscription_cancelled | patient_invite
+  channel      String   @db.VarChar(20)       // B2C | B2B | INTERNAL
+  recipientDomain String? @map("recipient_domain") @db.VarChar(100)  // e.g. gmail.com (para métricas, sem PII)
+  sentAt       DateTime @default(now()) @map("sent_at")
+  metadata     Json?    @default("{}") @db.JsonB   // optional: subject prefix, etc.
+
+  @@index([templateType])
+  @@index([channel])
+  @@index([sentAt])
+  @@index([templateType, sentAt])
+  @@map("email_communications")
+}
+
+// ==========================================
 // AI ASSISTANT ADMIN MODELS
 // ==========================================
 
