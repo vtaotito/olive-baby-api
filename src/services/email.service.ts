@@ -206,7 +206,7 @@ async function logEmailCommunication(
         templateType,
         channel,
         recipientDomain,
-        metadata: metadata ?? {},
+        metadata: (metadata ?? {}) as any,
       },
     });
   } catch (err) {
