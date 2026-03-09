@@ -1,4 +1,4 @@
-// Olive Baby API - Email Service
+// OlieCare API - Email Service
 // Supports MailerSend (primary) and SMTP via Nodemailer (fallback)
 import nodemailer from 'nodemailer';
 import { env } from '../config/env';
@@ -247,8 +247,8 @@ function wrapTemplate(content: string, title: string): string {
       <div class="container">
         ${content}
         <div class="footer">
-          <p>🌿 <strong>Olive Baby</strong></p>
-          <p>Acompanhamento do desenvolvimento do seu bebê</p>
+          <p>🌿 <strong>OlieCare</strong></p>
+          <p>Acompanhamento inteligente do desenvolvimento do seu bebê</p>
           <p style="margin-top: 10px; font-size: 11px; color: #aaa;">
             Este é um email automático. Por favor, não responda diretamente.
           </p>
@@ -301,7 +301,7 @@ export async function sendProfessionalInvite(data: {
     </div>
     <div class="content">
       <p>Olá <strong>${data.professionalName}</strong>,</p>
-      <p><strong>${data.caregiverName}</strong> convidou você para acompanhar o desenvolvimento de <strong>${data.babyName}</strong> na plataforma Olive Baby.</p>
+      <p><strong>${data.caregiverName}</strong> convidou você para acompanhar o desenvolvimento de <strong>${data.babyName}</strong> na plataforma OlieCare.</p>
       <div class="info-box">
         <p><strong>Papel:</strong> ${roleLabel}</p>
       </div>
@@ -318,7 +318,7 @@ export async function sendProfessionalInvite(data: {
 
   const success = await sendEmail({
     to: data.professionalEmail,
-    subject: `Convite para acompanhar ${data.babyName} - Olive Baby`,
+    subject: `Convite para acompanhar ${data.babyName} - OlieCare`,
     html: wrapTemplate(content, 'Convite Profissional'),
   });
 
@@ -391,7 +391,7 @@ export async function sendBabyInvite(data: {
     </div>
     <div class="content">
       <p>Olá <strong>${data.invitedName}</strong>,</p>
-      <p>Você foi convidado para acompanhar o desenvolvimento de <strong>${data.babyName}</strong> na plataforma Olive Baby.</p>
+      <p>Você foi convidado para acompanhar o desenvolvimento de <strong>${data.babyName}</strong> na plataforma OlieCare.</p>
       <div class="info-box">
         <p><strong>Tipo:</strong> ${inviteTypeLabel}</p>
         <p><strong>Papel:</strong> ${roleLabel}</p>
@@ -419,7 +419,7 @@ export async function sendBabyInvite(data: {
 
   const success = await sendEmail({
     to: data.emailInvited,
-    subject: `Convite para acompanhar ${data.babyName} - Olive Baby`,
+    subject: `Convite para acompanhar ${data.babyName} - OlieCare`,
     html: wrapTemplate(content, 'Convite'),
   });
 
@@ -446,7 +446,7 @@ export async function sendPasswordResetEmail(data: {
     </div>
     <div class="content">
       <p>Olá${data.userName ? ` <strong>${data.userName}</strong>` : ''},</p>
-      <p>Recebemos uma solicitação para redefinir a senha da sua conta na plataforma Olive Baby.</p>
+      <p>Recebemos uma solicitação para redefinir a senha da sua conta na plataforma OlieCare.</p>
       <p>Clique no botão abaixo para criar uma nova senha:</p>
       <div style="text-align: center;">
         <a href="${resetUrl}" class="button">Redefinir Senha</a>
@@ -468,7 +468,7 @@ export async function sendPasswordResetEmail(data: {
 
   const success = await sendEmail({
     to: data.email,
-    subject: 'Recuperação de Senha - Olive Baby',
+    subject: 'Recuperação de Senha - OlieCare',
     html: wrapTemplate(content, 'Recuperação de Senha'),
   });
 
@@ -494,7 +494,7 @@ export async function sendWelcomeEmail(data: {
   const content = `
     <div class="header">
       <div class="logo">🌿</div>
-      <h2>Bem-vindo ao Olive Baby!</h2>
+      <h2>Bem-vindo ao OlieCare!</h2>
     </div>
     <div class="content">
       <p>Olá <strong>${data.userName}</strong>,</p>
@@ -518,7 +518,7 @@ export async function sendWelcomeEmail(data: {
 
   await sendEmail({
     to: data.email,
-    subject: 'Bem-vindo ao Olive Baby! 🌿',
+    subject: 'Bem-vindo ao OlieCare! 🌿',
     html: wrapTemplate(content, 'Bem-vindo'),
   });
   await logEmailCommunication(EMAIL_TEMPLATE_TYPES.WELCOME, 'B2C', data.email);
@@ -567,7 +567,7 @@ export async function sendAlert(data: {
   
   await sendEmail({
     to: alertEmail,
-    subject: `[${data.level.toUpperCase()}] ${data.title} - Olive Baby`,
+    subject: `[${data.level.toUpperCase()}] ${data.title} - OlieCare`,
     html: wrapTemplate(content, 'Alerta do Sistema'),
   });
   await logEmailCommunication(EMAIL_TEMPLATE_TYPES.ALERT, 'INTERNAL', alertEmail, { component: data.component, level: data.level });
@@ -603,7 +603,7 @@ export async function sendPaymentConfirmation(data: {
           ${data.nextBillingDate ? `<li>📅 <strong>Próxima cobrança:</strong> ${data.nextBillingDate.toLocaleDateString('pt-BR')}</li>` : ''}
         </ul>
       </div>
-      <p>Obrigado por assinar o Olive Baby Premium! Agora você tem acesso a todos os recursos exclusivos.</p>
+      <p>Obrigado por assinar o OlieCare Premium! Agora você tem acesso a todos os recursos exclusivos.</p>
       <div style="text-align: center;">
         <a href="${dashboardUrl}" class="button">Ir para o Dashboard</a>
       </div>
@@ -612,7 +612,7 @@ export async function sendPaymentConfirmation(data: {
 
   await sendEmail({
     to: data.email,
-    subject: 'Pagamento Confirmado - Olive Baby Premium ✅',
+    subject: 'Pagamento Confirmado - OlieCare Premium ✅',
     html: wrapTemplate(content, 'Pagamento Confirmado'),
   });
   await logEmailCommunication(EMAIL_TEMPLATE_TYPES.PAYMENT_CONFIRMATION, 'B2C', data.email);
@@ -645,7 +645,7 @@ export async function sendSubscriptionCancelled(data: {
 
   await sendEmail({
     to: data.email,
-    subject: 'Assinatura Cancelada - Olive Baby',
+    subject: 'Assinatura Cancelada - OlieCare',
     html: wrapTemplate(content, 'Cancelamento'),
   });
   await logEmailCommunication(EMAIL_TEMPLATE_TYPES.SUBSCRIPTION_CANCELLED, 'B2C', data.email);
@@ -747,6 +747,165 @@ export async function sendPatientInviteEmail(data: {
   logger.info('Patient invite email sent', {
     email: data.patientEmail.substring(0, 3) + '***',
     professional: data.professionalName,
+  });
+}
+
+// ==========================================
+// Template Preview (Admin)
+// ==========================================
+
+const SAMPLE_DATA = {
+  professionalName: 'Dra. Maria Silva',
+  caregiverName: 'João Santos',
+  babyName: 'Alice',
+  userName: 'Ana Costa',
+  email: 'teste@exemplo.com',
+  activationUrl: '#preview',
+  resetUrl: '#preview',
+  dashboardUrl: '#preview',
+  inviteToken: 'preview-token',
+  role: 'PEDIATRICIAN',
+  planName: 'Premium',
+  amount: 2990,
+  currency: 'R$',
+};
+
+export function getTemplatePreview(templateType: string): { subject: string; html: string } | null {
+  switch (templateType) {
+    case 'professional_invite': {
+      const content = `
+        <div class="header"><div class="logo">🌿</div><h2>Convite para Acompanhar ${SAMPLE_DATA.babyName}</h2></div>
+        <div class="content">
+          <p>Olá <strong>${SAMPLE_DATA.professionalName}</strong>,</p>
+          <p><strong>${SAMPLE_DATA.caregiverName}</strong> convidou você para acompanhar o desenvolvimento de <strong>${SAMPLE_DATA.babyName}</strong> na plataforma OlieCare.</p>
+          <div class="info-box"><p><strong>Papel:</strong> Pediatra</p></div>
+          <p>Clique no botão abaixo para ativar sua conta:</p>
+          <div style="text-align: center;"><a href="#" class="button">Ativar Conta</a></div>
+          <div class="warning"><strong>⚠️ Importante:</strong> Este link expira em 7 dias.</div>
+        </div>`;
+      return { subject: `Convite para acompanhar ${SAMPLE_DATA.babyName} - OlieCare`, html: wrapTemplate(content, 'Convite Profissional') };
+    }
+    case 'baby_invite': {
+      const content = `
+        <div class="header"><div class="logo">🌿</div><h2>Convite para Acompanhar ${SAMPLE_DATA.babyName}</h2></div>
+        <div class="content">
+          <p>Olá <strong>${SAMPLE_DATA.userName}</strong>,</p>
+          <p>Você foi convidado para acompanhar o desenvolvimento de <strong>${SAMPLE_DATA.babyName}</strong> na plataforma OlieCare.</p>
+          <div class="info-box"><p><strong>Tipo:</strong> Familiar</p><p><strong>Papel:</strong> Familiar (Pode editar)</p></div>
+          <p>Clique no botão abaixo para aceitar o convite:</p>
+          <div style="text-align: center;"><a href="#" class="button">Aceitar Convite</a></div>
+          <div class="warning"><strong>⚠️ Importante:</strong><ul style="margin:10px 0;padding-left:20px;"><li>Este link expira em 72 horas</li><li>Se você não tem conta, será necessário criar uma</li></ul></div>
+        </div>`;
+      return { subject: `Convite para acompanhar ${SAMPLE_DATA.babyName} - OlieCare`, html: wrapTemplate(content, 'Convite') };
+    }
+    case 'password_reset': {
+      const content = `
+        <div class="header"><div class="logo">🔐</div><h2>Recuperação de Senha</h2></div>
+        <div class="content">
+          <p>Olá <strong>${SAMPLE_DATA.userName}</strong>,</p>
+          <p>Recebemos uma solicitação para redefinir a senha da sua conta na plataforma OlieCare.</p>
+          <p>Clique no botão abaixo para criar uma nova senha:</p>
+          <div style="text-align: center;"><a href="#" class="button">Redefinir Senha</a></div>
+          <div class="warning"><strong>⚠️ Importante:</strong><ul style="margin:10px 0;padding-left:20px;"><li>Este link expira em <strong>30 minutos</strong></li><li>Se você não solicitou esta recuperação, ignore este email</li></ul></div>
+        </div>`;
+      return { subject: 'Recuperação de Senha - OlieCare', html: wrapTemplate(content, 'Recuperação de Senha') };
+    }
+    case 'welcome': {
+      const content = `
+        <div class="header"><div class="logo">🌿</div><h2>Bem-vindo ao OlieCare!</h2></div>
+        <div class="content">
+          <p>Olá <strong>${SAMPLE_DATA.userName}</strong>,</p>
+          <p>Sua conta foi criada com sucesso! Estamos muito felizes em ter você conosco.</p>
+          <div class="info-box">
+            <p><strong>O que você pode fazer:</strong></p>
+            <ul style="margin:10px 0;padding-left:20px;">
+              <li>📊 Acompanhar o desenvolvimento do seu bebê</li>
+              <li>📝 Registrar rotinas (alimentação, sono, fraldas)</li>
+              <li>📈 Visualizar estatísticas e tendências</li>
+              <li>👨‍👩‍👧 Convidar familiares e profissionais</li>
+              <li>🤖 Usar o assistente de IA para dicas personalizadas</li>
+            </ul>
+          </div>
+          <div style="text-align: center;"><a href="#" class="button">Acessar Dashboard</a></div>
+        </div>`;
+      return { subject: 'Bem-vindo ao OlieCare! 🌿', html: wrapTemplate(content, 'Bem-vindo') };
+    }
+    case 'alert': {
+      const content = `
+        <div class="header" style="background: #FF9800;"><h2>⚠️ Alerta de Exemplo</h2></div>
+        <div class="content">
+          <p><strong>Componente:</strong> example-component</p>
+          <p><strong>Nível:</strong> WARNING</p>
+          <p><strong>Mensagem:</strong> Este é um preview do template de alerta do sistema.</p>
+          <div class="message-box"><strong>Detalhes:</strong><pre style="margin:10px 0;font-size:12px;">{ "example": true }</pre></div>
+        </div>`;
+      return { subject: '[WARNING] Alerta de Exemplo - OlieCare', html: wrapTemplate(content, 'Alerta do Sistema') };
+    }
+    case 'payment_confirmation': {
+      const content = `
+        <div class="header"><div class="logo">✅</div><h2>Pagamento Confirmado!</h2></div>
+        <div class="content">
+          <p>Olá <strong>${SAMPLE_DATA.userName}</strong>,</p>
+          <p>Seu pagamento foi processado com sucesso!</p>
+          <div class="info-box">
+            <p><strong>Detalhes:</strong></p>
+            <ul style="margin:10px 0;padding-left:20px;list-style:none;">
+              <li>📦 <strong>Plano:</strong> Premium</li>
+              <li>💰 <strong>Valor:</strong> R$ 29,90</li>
+              <li>📅 <strong>Próxima cobrança:</strong> 11/03/2026</li>
+            </ul>
+          </div>
+          <p>Obrigado por assinar o OlieCare Premium!</p>
+          <div style="text-align: center;"><a href="#" class="button">Ir para o Dashboard</a></div>
+        </div>`;
+      return { subject: 'Pagamento Confirmado - OlieCare Premium ✅', html: wrapTemplate(content, 'Pagamento Confirmado') };
+    }
+    case 'subscription_cancelled': {
+      const content = `
+        <div class="header" style="background: #FF9800;"><div class="logo">📝</div><h2>Assinatura Cancelada</h2></div>
+        <div class="content">
+          <p>Olá <strong>${SAMPLE_DATA.userName}</strong>,</p>
+          <p>Confirmamos o cancelamento da sua assinatura do plano <strong>Premium</strong>.</p>
+          <div class="info-box"><p>Você continuará tendo acesso aos recursos premium até <strong>11/03/2026</strong>.</p></div>
+          <p>Após esta data, sua conta será automaticamente convertida para o plano gratuito.</p>
+          <p>Sentiremos sua falta! Se mudar de ideia, você pode reativar sua assinatura a qualquer momento.</p>
+        </div>`;
+      return { subject: 'Assinatura Cancelada - OlieCare', html: wrapTemplate(content, 'Cancelamento') };
+    }
+    case 'patient_invite': {
+      const content = `
+        <div class="header"><div class="logo">🌿</div><h2>Convite para o OlieCare</h2><p style="margin:5px 0 0;font-size:14px;opacity:0.9;">Acompanhamento inteligente do desenvolvimento do seu bebê</p></div>
+        <div class="content">
+          <p>Olá <strong>${SAMPLE_DATA.userName}</strong>,</p>
+          <p>O(a) <strong>Pediatra</strong> <strong>${SAMPLE_DATA.professionalName}</strong> (CRM 12345) convidou você para utilizar o <strong>OlieCare</strong> para acompanhar o desenvolvimento de <strong>${SAMPLE_DATA.babyName}</strong>.</p>
+          <div class="info-box">
+            <p style="margin:0 0 10px;font-weight:600;font-size:15px;">📱 O que é o OlieCare?</p>
+            <p style="margin:0 0 12px;font-size:14px;">O OlieCare é uma plataforma completa para acompanhar o desenvolvimento do seu bebê.</p>
+          </div>
+          <div style="text-align: center;margin:25px 0;"><a href="#" class="button" style="font-size:16px;padding:16px 36px;">Criar minha conta grátis</a></div>
+          <div class="warning"><strong>⚠️ Importante:</strong> Este convite expira em 30 dias.</div>
+        </div>`;
+      return { subject: `${SAMPLE_DATA.professionalName} convidou você para o OlieCare 🌿`, html: wrapTemplate(content, 'Convite OlieCare') };
+    }
+    default:
+      return null;
+  }
+}
+
+export function getAllTemplatePreviews(): Array<{ type: string; name: string; channel: string; subject: string; html: string }> {
+  const templates = [
+    { type: 'professional_invite', name: 'Convite Profissional', channel: 'B2B' },
+    { type: 'baby_invite', name: 'Convite para Bebê', channel: 'B2C' },
+    { type: 'password_reset', name: 'Recuperação de Senha', channel: 'B2C' },
+    { type: 'welcome', name: 'Boas-vindas', channel: 'B2C' },
+    { type: 'alert', name: 'Alerta do Sistema', channel: 'INTERNAL' },
+    { type: 'payment_confirmation', name: 'Confirmação de Pagamento', channel: 'B2C' },
+    { type: 'subscription_cancelled', name: 'Cancelamento de Assinatura', channel: 'B2C' },
+    { type: 'patient_invite', name: 'Convite Paciente', channel: 'B2B' },
+  ];
+  return templates.map(t => {
+    const preview = getTemplatePreview(t.type);
+    return { ...t, subject: preview?.subject ?? '', html: preview?.html ?? '' };
   });
 }
 

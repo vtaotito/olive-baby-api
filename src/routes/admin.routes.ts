@@ -192,6 +192,19 @@ router.get(
   AdminController.getCommunicationsVolume
 );
 
+// GET /admin/communications/stats - KPI stats
+router.get('/communications/stats', AdminController.getCommunicationsStats);
+
+// ==========================================
+// Email Templates (preview / test)
+// ==========================================
+
+// GET /admin/email-templates - All templates with rendered preview
+router.get('/email-templates', AdminController.getEmailTemplates);
+
+// GET /admin/email-templates/:type/preview - Single template preview
+router.get('/email-templates/:type/preview', AdminController.getEmailTemplatePreview);
+
 // ==========================================
 // Testing & Diagnostics
 // ==========================================

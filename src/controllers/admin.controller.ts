@@ -6,7 +6,18 @@ import { AdminService } from '../services/admin.service';
 import { AdminAnalyticsService } from '../services/adminAnalytics.service';
 import { AdminSummaryService } from '../services/adminSummary.service';
 import { ApiEventsService } from '../services/apiEvents.service';
-import { sendWelcomeEmail, sendAlert } from '../services/email.service';
+import {
+  sendWelcomeEmail,
+  sendAlert,
+  sendPasswordResetEmail,
+  sendPaymentConfirmation,
+  sendSubscriptionCancelled,
+  sendProfessionalInvite,
+  sendBabyInvite,
+  sendPatientInviteEmail,
+  getTemplatePreview,
+  getAllTemplatePreviews,
+} from '../services/email.service';
 import { AuthenticatedRequest, ApiResponse } from '../types';
 import { PlanType, UserStatus } from '@prisma/client';
 
@@ -101,7 +112,14 @@ export const opsSummaryQuerySchema = summaryWindowQuerySchema;
 
 export const testEmailSchema = z.object({
   email: z.string().email(),
-  type: z.enum(['welcome', 'alert']).default('welcome'),
+  type: z.enum([
+    'welcome', 'alert', 'password_reset', 'payment_confirmation',
+    'subscription_cancelled', 'professional_invite', 'baby_invite', 'patient_invite',
+  ]).default('welcome'),
+});
+
+export const templatePreviewSchema = z.object({
+  type: z.string(),
 });
 
 export const communicationsQuerySchema = z.object({
@@ -759,8 +777,101 @@ export class AdminController {
   }
 
   /**
+   * GET /admin/communications/stats
+   * KPI stats for email communications
+   */
+  static async getCommunicationsStats(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const thirtyDaysAgo = new Date(now);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const [total, todayCount, last30Days, byChannel, byTemplate] = await Promise.all([
+        prisma.emailCommunication.count(),
+        prisma.emailCommunication.count({ where: { sentAt: { gte: today } } }),
+        prisma.emailCommunication.count({ where: { sentAt: { gte: thirtyDaysAgo } } }),
+        prisma.emailCommunication.groupBy({
+          by: ['channel'],
+          _count: { id: true },
+        }),
+        prisma.emailCommunication.groupBy({
+          by: ['templateType'],
+          _count: { id: true },
+          orderBy: { _count: { id: 'desc' } },
+        }),
+      ]);
+
+      const channelMap: Record<string, number> = {};
+      byChannel.forEach(c => { channelMap[c.channel] = c._count.id; });
+
+      const templateRanking = byTemplate.map(t => ({
+        templateType: t.templateType,
+        count: t._count.id,
+      }));
+
+      res.json({
+        success: true,
+        data: {
+          total,
+          todayCount,
+          last30Days,
+          avgPerDay: last30Days > 0 ? Math.round((last30Days / 30) * 10) / 10 : 0,
+          byChannel: channelMap,
+          templateRanking,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /admin/email-templates
+   * Returns all templates with rendered HTML previews
+   */
+  static async getEmailTemplates(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const templates = getAllTemplatePreviews();
+      res.json({ success: true, data: templates });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /admin/email-templates/:type/preview
+   * Returns rendered HTML preview for a specific template
+   */
+  static async getEmailTemplatePreview(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { type } = req.params;
+      const preview = getTemplatePreview(type);
+      if (!preview) {
+        res.status(404).json({ success: false, message: 'Template não encontrado' });
+        return;
+      }
+      res.json({ success: true, data: preview });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * POST /admin/test-email
-   * Send a test email to verify email service is working
+   * Send a test email of any template type
    */
   static async testEmail(
     req: AuthenticatedRequest,
@@ -769,33 +880,64 @@ export class AdminController {
   ): Promise<void> {
     try {
       const { email, type } = testEmailSchema.parse(req.body);
+      const sampleToken = 'test-' + Date.now();
 
-      if (type === 'welcome') {
-        await sendWelcomeEmail({
-          email,
-          userName: 'Teste de Email',
-        });
-      } else if (type === 'alert') {
-        await sendAlert({
-          level: 'info',
-          title: 'Teste de Email',
-          message: 'Este é um email de teste do sistema Olive Baby.',
-          component: 'admin-test',
-          metadata: {
-            testedBy: req.user?.email,
-            timestamp: new Date().toISOString(),
-          },
-        });
+      switch (type) {
+        case 'welcome':
+          await sendWelcomeEmail({ email, userName: 'Usuário de Teste' });
+          break;
+        case 'alert':
+          await sendAlert({
+            level: 'info',
+            title: 'Teste de Email',
+            message: 'Este é um email de teste do sistema OlieCare.',
+            component: 'admin-test',
+            metadata: { testedBy: req.user?.email, timestamp: new Date().toISOString() },
+          });
+          break;
+        case 'password_reset':
+          await sendPasswordResetEmail({ email, resetToken: sampleToken, userName: 'Usuário de Teste' });
+          break;
+        case 'payment_confirmation':
+          await sendPaymentConfirmation({
+            email, userName: 'Usuário de Teste', planName: 'Premium',
+            amount: 2990, currency: 'R$', nextBillingDate: new Date(Date.now() + 30 * 24 * 3600000),
+          });
+          break;
+        case 'subscription_cancelled':
+          await sendSubscriptionCancelled({
+            email, userName: 'Usuário de Teste', planName: 'Premium',
+            endDate: new Date(Date.now() + 30 * 24 * 3600000),
+          });
+          break;
+        case 'professional_invite':
+          await sendProfessionalInvite({
+            professionalEmail: email, professionalName: 'Profissional Teste',
+            caregiverName: 'Cuidador Teste', babyName: 'Bebê Teste',
+            inviteToken: sampleToken, role: 'PEDIATRICIAN',
+          });
+          break;
+        case 'baby_invite':
+          await sendBabyInvite({
+            emailInvited: email, invitedName: 'Convidado Teste',
+            babyName: 'Bebê Teste', inviteToken: sampleToken,
+            memberType: 'FAMILY', role: 'FAMILY_EDITOR',
+          });
+          break;
+        case 'patient_invite':
+          await sendPatientInviteEmail({
+            patientEmail: email, patientName: 'Paciente Teste',
+            professionalName: 'Dra. Teste', professionalSpecialty: 'PEDIATRICIAN',
+            professionalCRM: 'CRM 12345-SP', babyName: 'Bebê Teste',
+            inviteToken: sampleToken, userExists: false,
+          });
+          break;
       }
 
       res.json({
         success: true,
         message: `Email de teste (${type}) enviado para ${email}`,
-        data: {
-          email,
-          type,
-          sentAt: new Date().toISOString(),
-        },
+        data: { email, type, sentAt: new Date().toISOString() },
       });
     } catch (error) {
       next(error);
