@@ -808,6 +808,62 @@ model EmailCommunication {
 }
 
 // ==========================================
+// SYSTEM ALERTS
+// ==========================================
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+}
+
+enum AlertStatus {
+  NEW
+  SEEN
+  RESOLVED
+  MUTED
+}
+
+model SystemAlert {
+  id          Int           @id @default(autoincrement())
+  type        String        @db.VarChar(50)   // memory, database, redis, email_quota, api_error, churn, retention
+  severity    AlertSeverity @default(WARNING)
+  status      AlertStatus   @default(NEW)
+  title       String        @db.VarChar(200)
+  message     String        @db.VarChar(1000)
+  component   String        @db.VarChar(50)   // monitoring, email, push, billing, api
+  metadata    Json?         @default("{}") @db.JsonB
+  resolvedAt  DateTime?     @map("resolved_at")
+  resolvedBy  String?       @map("resolved_by") @db.VarChar(100)
+  notified    Boolean       @default(false)
+  createdAt   DateTime      @default(now()) @map("created_at")
+
+  @@index([status])
+  @@index([severity])
+  @@index([type])
+  @@index([createdAt])
+  @@index([status, severity])
+  @@map("system_alerts")
+}
+
+model AlertConfig {
+  id           String  @id @db.VarChar(50)  // memory_critical, db_slow, email_quota, etc.
+  name         String  @db.VarChar(100)
+  description  String? @db.VarChar(300)
+  category     String  @db.VarChar(30)     // system, email, push, business
+  enabled      Boolean @default(true)
+  threshold    Json?   @default("{}") @db.JsonB  // { value: 90, unit: '%' }
+  channels     Json    @default("[\"email\"]") @db.JsonB  // ["email", "push", "slack"]
+  cooldownMin  Int     @default(5) @map("cooldown_min")
+  recipients   Json?   @default("[]") @db.JsonB  // ["admin@oliecare.cloud"]
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([category])
+  @@map("alert_configs")
+}
+
+// ==========================================
 // JOURNEY & TRIGGER MODELS
 // ==========================================
 

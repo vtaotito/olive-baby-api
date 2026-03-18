@@ -4,6 +4,7 @@ import { Redis } from 'ioredis';
 import { logger } from '../config/logger';
 import { env } from '../config/env';
 import * as emailService from './email.service';
+import { AlertService } from './alert.service';
 
 const prisma = new PrismaClient();
 
@@ -276,9 +277,6 @@ class MonitoringService {
 
     alertCache.set(alertKey, Date.now());
 
-    // Log do alerta (mapear para níveis válidos do Winston)
-    // Winston não tem 'warning', usa 'warn'
-    // Winston não tem 'critical', usa 'error'
     const logLevel = alert.level === 'critical' 
       ? 'error' 
       : alert.level === 'warning' 
@@ -291,6 +289,24 @@ class MonitoringService {
       alertLevel: alert.level,
       ...alert.metadata,
     });
+
+    const severityMap: Record<string, 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL'> = {
+      info: 'INFO', warning: 'WARNING', error: 'ERROR', critical: 'CRITICAL',
+    };
+    try {
+      await AlertService.create({
+        type: alert.component === 'memory' ? (alert.level === 'critical' ? 'memory_critical' : 'memory_warning') :
+              alert.component === 'database' ? (alert.level === 'critical' ? 'db_down' : 'db_slow') :
+              alert.component === 'redis' ? 'redis_down' : alert.component,
+        severity: severityMap[alert.level] ?? 'WARNING',
+        title: alert.title,
+        message: alert.message,
+        component: alert.component,
+        metadata: alert.metadata,
+      });
+    } catch (err) {
+      logger.warn('[Monitoring] Failed to persist alert to DB', { error: (err as Error).message });
+    }
 
     // Enviar email para alertas críticos e erros
     if (alert.level === 'critical' || alert.level === 'error') {

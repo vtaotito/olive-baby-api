@@ -27,6 +27,10 @@ import {
   journeyUpdateSchema,
   journeyStepsReplaceSchema,
   journeyListSchema,
+  alertsListSchema,
+  alertUpdateStatusSchema,
+  alertBulkUpdateSchema,
+  alertConfigUpdateSchema,
 } from '../controllers/admin.controller';
 
 const router = Router();
@@ -252,6 +256,19 @@ router.patch('/journeys/:id', AdminController.updateJourney);
 router.delete('/journeys/:id', AdminController.deleteJourney);
 router.post('/journeys/:id/activate', AdminController.activateJourney);
 router.put('/journeys/:id/steps', AdminController.replaceJourneySteps);
+
+// ==========================================
+// System Alerts
+// ==========================================
+
+router.get('/alerts', AdminController.listAlerts);
+router.get('/alerts/stats', AdminController.getAlertStats);
+router.get('/alerts/configs', AdminController.listAlertConfigs);
+router.patch('/alerts/configs/:id', AdminController.updateAlertConfig);
+router.patch('/alerts/:id/status', AdminController.updateAlertStatus);
+router.post('/alerts/bulk-update', AdminController.bulkUpdateAlerts);
+router.post('/alerts/resolve-type', AdminController.resolveAlertsByType);
+router.post('/alerts/test', AdminController.createTestAlert);
 
 // ==========================================
 // Testing & Diagnostics

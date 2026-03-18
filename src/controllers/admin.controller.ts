@@ -21,8 +21,9 @@ import {
 import { PushNotificationService, PUSH_TRIGGERS } from '../services/push-notification.service';
 import { DeviceTokenService } from '../services/device-token.service';
 import { JourneyService } from '../services/journey.service';
+import { AlertService } from '../services/alert.service';
 import { AuthenticatedRequest, ApiResponse } from '../types';
-import { PlanType, UserStatus, JourneyStatus } from '@prisma/client';
+import { PlanType, UserStatus, JourneyStatus, AlertStatus, AlertSeverity } from '@prisma/client';
 
 // ==========================================
 // Validation Schemas
@@ -180,6 +181,35 @@ export const journeyListSchema = z.object({
   status: z.enum(['DRAFT', 'ACTIVE', 'PAUSED', 'COMPLETED']).optional(),
   page: z.coerce.number().int().min(1).optional().default(1),
   limit: z.coerce.number().int().min(1).max(100).optional().default(50),
+});
+
+// Alert schemas
+export const alertsListSchema = z.object({
+  status: z.enum(['NEW', 'SEEN', 'RESOLVED', 'MUTED']).optional(),
+  severity: z.enum(['INFO', 'WARNING', 'ERROR', 'CRITICAL']).optional(),
+  type: z.string().optional(),
+  component: z.string().optional(),
+  from: z.string().optional(),
+  to: z.string().optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(50),
+});
+
+export const alertUpdateStatusSchema = z.object({
+  status: z.enum(['NEW', 'SEEN', 'RESOLVED', 'MUTED']),
+});
+
+export const alertBulkUpdateSchema = z.object({
+  ids: z.array(z.number().int()),
+  status: z.enum(['NEW', 'SEEN', 'RESOLVED', 'MUTED']),
+});
+
+export const alertConfigUpdateSchema = z.object({
+  enabled: z.boolean().optional(),
+  threshold: z.record(z.unknown()).optional(),
+  channels: z.array(z.string()).optional(),
+  cooldownMin: z.number().int().min(1).optional(),
+  recipients: z.array(z.string()).optional(),
 });
 
 export const communicationsQuerySchema = z.object({
@@ -1306,6 +1336,101 @@ export class AdminController {
       });
 
       res.status(201).json({ success: true, data: journey, message: `Jornada "${tmpl.name}" criada a partir do template` });
+    } catch (error) { next(error); }
+  }
+
+  // ==========================================
+  // System Alerts
+  // ==========================================
+
+  static async listAlerts(
+    req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction
+  ): Promise<void> {
+    try {
+      const filters = alertsListSchema.parse(req.query);
+      const result = await AlertService.list(filters as any);
+      res.json({ success: true, data: result });
+    } catch (error) { next(error); }
+  }
+
+  static async getAlertStats(
+    req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction
+  ): Promise<void> {
+    try {
+      const stats = await AlertService.getStats();
+      res.json({ success: true, data: stats });
+    } catch (error) { next(error); }
+  }
+
+  static async updateAlertStatus(
+    req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction
+  ): Promise<void> {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const { status } = alertUpdateStatusSchema.parse(req.body);
+      const alert = await AlertService.updateStatus(id, status as AlertStatus, req.user?.email);
+      res.json({ success: true, data: alert, message: `Alerta atualizado para ${status}` });
+    } catch (error) { next(error); }
+  }
+
+  static async bulkUpdateAlerts(
+    req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction
+  ): Promise<void> {
+    try {
+      const { ids, status } = alertBulkUpdateSchema.parse(req.body);
+      const result = await AlertService.bulkUpdateStatus(ids, status as AlertStatus, req.user?.email);
+      res.json({ success: true, data: result, message: `${result.count} alertas atualizados` });
+    } catch (error) { next(error); }
+  }
+
+  static async resolveAlertsByType(
+    req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction
+  ): Promise<void> {
+    try {
+      const { type } = z.object({ type: z.string() }).parse(req.body);
+      const result = await AlertService.resolveAllByType(type, req.user?.email);
+      res.json({ success: true, data: result, message: `Alertas "${type}" resolvidos` });
+    } catch (error) { next(error); }
+  }
+
+  static async listAlertConfigs(
+    req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction
+  ): Promise<void> {
+    try {
+      const configs = await AlertService.listConfigs();
+      res.json({ success: true, data: configs });
+    } catch (error) { next(error); }
+  }
+
+  static async updateAlertConfig(
+    req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction
+  ): Promise<void> {
+    try {
+      const { id } = req.params;
+      const data = alertConfigUpdateSchema.parse(req.body);
+      const config = await AlertService.updateConfig(id, data as any);
+      res.json({ success: true, data: config, message: `Configuração "${id}" atualizada` });
+    } catch (error) { next(error); }
+  }
+
+  static async createTestAlert(
+    req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction
+  ): Promise<void> {
+    try {
+      const { type, severity, title, message, component } = z.object({
+        type: z.string().default('test'),
+        severity: z.enum(['INFO', 'WARNING', 'ERROR', 'CRITICAL']).default('INFO'),
+        title: z.string().default('Alerta de Teste'),
+        message: z.string().default('Este é um alerta de teste gerado pelo admin.'),
+        component: z.string().default('admin-test'),
+      }).parse(req.body);
+
+      const alert = await AlertService.create({
+        type, severity: severity as AlertSeverity, title, message, component,
+        metadata: { createdBy: req.user?.email, timestamp: new Date().toISOString() },
+      });
+
+      res.status(201).json({ success: true, data: alert, message: 'Alerta de teste criado' });
     } catch (error) { next(error); }
   }
 }
