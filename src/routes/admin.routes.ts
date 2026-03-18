@@ -21,6 +21,7 @@ import {
   testEmailSchema,
   communicationsQuerySchema,
   communicationsVolumeQuerySchema,
+  pushBroadcastSchema,
 } from '../controllers/admin.controller';
 
 const router = Router();
@@ -204,6 +205,26 @@ router.get('/email-templates', AdminController.getEmailTemplates);
 
 // GET /admin/email-templates/:type/preview - Single template preview
 router.get('/email-templates/:type/preview', AdminController.getEmailTemplatePreview);
+
+// ==========================================
+// Push Notifications (Admin)
+// ==========================================
+
+// GET /admin/push/stats - Push stats (devices + sends)
+router.get('/push/stats', AdminController.getPushStats);
+
+// GET /admin/push/triggers - List push trigger definitions
+router.get('/push/triggers', AdminController.getPushTriggers);
+
+// POST /admin/push/broadcast - Send push to segment
+router.post(
+  '/push/broadcast',
+  validateBody(pushBroadcastSchema),
+  AdminController.sendPushBroadcast
+);
+
+// POST /admin/push/test - Send test push to admin
+router.post('/push/test', AdminController.sendPushTest);
 
 // ==========================================
 // Testing & Diagnostics

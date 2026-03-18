@@ -1,10 +1,11 @@
-// Olive Baby API - Push Notification Service
+// OlieCare API - Push Notification Service
 // Envio real de push notifications via Web Push (VAPID), FCM (Firebase) e Expo
 import { DevicePlatform } from '@prisma/client';
 import { DeviceTokenService } from './device-token.service';
 import { sendWebPushNotification, isWebPushConfigured } from '../config/webpush';
 import { getFirebaseMessaging, isFirebaseConfigured } from '../config/firebase';
 import { logger } from '../config/logger';
+import { prisma } from '../config/database';
 
 // ==========================================
 // Types
@@ -357,7 +358,282 @@ export class PushNotificationService {
     return {
       webPush: isWebPushConfigured(),
       fcm: isFirebaseConfigured(),
-      expo: false, // TODO: implementar quando adicionar Expo
+      expo: false,
     };
   }
+
+  /**
+   * Log push notification send to EmailCommunication table for unified tracking
+   */
+  static async logPushCommunication(
+    triggerType: string,
+    channel: 'B2C' | 'B2B' | 'INTERNAL',
+    userId?: number,
+    metadata?: Record<string, unknown>
+  ): Promise<void> {
+    try {
+      await prisma.emailCommunication.create({
+        data: {
+          templateType: `push_${triggerType}`,
+          channel,
+          recipientDomain: userId ? `user:${userId}` : null,
+          metadata: (metadata ?? {}) as any,
+        },
+      });
+    } catch (err) {
+      logger.warn('[Push] Communication log failed', { triggerType, error: (err as Error).message });
+    }
+  }
+
+  /**
+   * Send push to a segment of users (admin broadcast)
+   */
+  static async sendToSegment(
+    segment: 'all' | 'b2c' | 'b2b' | 'premium' | 'free',
+    payload: PushPayload
+  ): Promise<{ sent: number; failed: number; noToken: number }> {
+    let whereClause: any = { status: 'ACTIVE', isActive: true };
+
+    switch (segment) {
+      case 'b2c':
+        whereClause.role = { in: ['PARENT', 'CAREGIVER'] };
+        break;
+      case 'b2b':
+        whereClause.role = { in: ['PEDIATRICIAN', 'SPECIALIST'] };
+        break;
+      case 'premium':
+        whereClause.plan = { planType: 'PREMIUM' };
+        break;
+      case 'free':
+        whereClause.OR = [{ planId: null }, { plan: { planType: 'FREE' } }];
+        break;
+    }
+
+    const users = await prisma.user.findMany({
+      where: whereClause,
+      select: { id: true },
+    });
+
+    if (users.length === 0) {
+      return { sent: 0, failed: 0, noToken: 0 };
+    }
+
+    const results = await PushNotificationService.sendToUsers(
+      users.map(u => u.id),
+      payload
+    );
+
+    let sent = 0;
+    let failed = 0;
+    let noToken = 0;
+
+    for (const [userId, pushResults] of results) {
+      if (pushResults.length === 0) {
+        noToken++;
+      } else {
+        sent += pushResults.filter(r => r.success).length;
+        failed += pushResults.filter(r => !r.success).length;
+      }
+    }
+
+    const usersWithNoResults = users.length - results.size;
+    noToken += usersWithNoResults;
+
+    const channel = segment === 'b2b' ? 'B2B' : segment === 'all' ? 'INTERNAL' : 'B2C';
+    await PushNotificationService.logPushCommunication('broadcast', channel, undefined, {
+      segment,
+      title: payload.title,
+      sent,
+      failed,
+      noToken,
+      totalUsers: users.length,
+    });
+
+    return { sent, failed, noToken };
+  }
 }
+
+// ==========================================
+// Push Trigger Definitions
+// ==========================================
+
+export interface PushTriggerDefinition {
+  id: string;
+  name: string;
+  description: string;
+  channel: 'B2C' | 'B2B' | 'INTERNAL';
+  category: 'engagement' | 'lifecycle' | 'clinical' | 'system';
+  defaultEnabled: boolean;
+  defaultPayload: PushPayload;
+  configSchema: {
+    key: string;
+    label: string;
+    type: 'number' | 'boolean' | 'string';
+    default: number | boolean | string;
+  }[];
+}
+
+export const PUSH_TRIGGERS: PushTriggerDefinition[] = [
+  // B2C - Engagement
+  {
+    id: 'routine_reminder',
+    name: 'Lembrete de Rotina',
+    description: 'Lembra o cuidador de registrar a rotina do bebê quando não há registros há X horas',
+    channel: 'B2C',
+    category: 'engagement',
+    defaultEnabled: true,
+    defaultPayload: {
+      title: 'Hora de registrar! 📝',
+      body: 'Não se esqueça de registrar a rotina do seu bebê. Manter os dados atualizados ajuda a identificar padrões.',
+      clickAction: '/dashboard',
+      icon: '/icon-192x192.png',
+    },
+    configSchema: [
+      { key: 'hoursThreshold', label: 'Horas sem registro', type: 'number', default: 6 },
+      { key: 'maxPerDay', label: 'Máximo por dia', type: 'number', default: 2 },
+    ],
+  },
+  {
+    id: 'inactivity_nudge',
+    name: 'Nudge de Inatividade',
+    description: 'Envia push para usuários inativos há X dias incentivando o retorno',
+    channel: 'B2C',
+    category: 'engagement',
+    defaultEnabled: true,
+    defaultPayload: {
+      title: 'Sentimos sua falta! 🌿',
+      body: 'Faz alguns dias que você não registra a rotina. Volte para acompanhar o desenvolvimento do seu bebê.',
+      clickAction: '/dashboard',
+    },
+    configSchema: [
+      { key: 'daysInactive', label: 'Dias de inatividade', type: 'number', default: 3 },
+    ],
+  },
+  {
+    id: 'weekly_summary',
+    name: 'Resumo Semanal',
+    description: 'Notifica o usuário sobre o resumo semanal da rotina do bebê',
+    channel: 'B2C',
+    category: 'engagement',
+    defaultEnabled: false,
+    defaultPayload: {
+      title: 'Seu resumo semanal está pronto! 📊',
+      body: 'Veja os padrões de alimentação, sono e crescimento do seu bebê nesta semana.',
+      clickAction: '/dashboard',
+    },
+    configSchema: [
+      { key: 'dayOfWeek', label: 'Dia da semana (0=Dom, 6=Sáb)', type: 'number', default: 1 },
+    ],
+  },
+  // B2C - Lifecycle
+  {
+    id: 'subscription_expiring',
+    name: 'Assinatura Expirando',
+    description: 'Avisa quando a assinatura Premium está próxima do vencimento',
+    channel: 'B2C',
+    category: 'lifecycle',
+    defaultEnabled: true,
+    defaultPayload: {
+      title: 'Sua assinatura expira em breve ⏰',
+      body: 'Renove sua assinatura OlieCare Premium para continuar com acesso a todos os recursos.',
+      clickAction: '/settings',
+      priority: 'high',
+    },
+    configSchema: [
+      { key: 'daysBefore', label: 'Dias antes do vencimento', type: 'number', default: 3 },
+    ],
+  },
+  {
+    id: 'welcome_onboarding',
+    name: 'Onboarding Incompleto',
+    description: 'Incentiva novos usuários que não completaram o cadastro do bebê',
+    channel: 'B2C',
+    category: 'lifecycle',
+    defaultEnabled: true,
+    defaultPayload: {
+      title: 'Falta pouco para começar! 👶',
+      body: 'Complete o cadastro do seu bebê para começar a acompanhar a rotina e receber insights personalizados.',
+      clickAction: '/onboarding',
+    },
+    configSchema: [
+      { key: 'hoursAfterRegister', label: 'Horas após registro', type: 'number', default: 24 },
+    ],
+  },
+  // B2B - Clinical
+  {
+    id: 'patient_inactivity',
+    name: 'Paciente Inativo',
+    description: 'Alerta o profissional quando um paciente não registra rotina há X dias',
+    channel: 'B2B',
+    category: 'clinical',
+    defaultEnabled: true,
+    defaultPayload: {
+      title: 'Paciente com registros desatualizados 📋',
+      body: 'Um dos seus pacientes não registra a rotina há vários dias. Considere entrar em contato.',
+      clickAction: '/prof/dashboard',
+    },
+    configSchema: [
+      { key: 'daysInactive', label: 'Dias sem registro do paciente', type: 'number', default: 5 },
+    ],
+  },
+  {
+    id: 'new_patient_assigned',
+    name: 'Novo Paciente',
+    description: 'Notifica o profissional quando um novo paciente aceita o convite',
+    channel: 'B2B',
+    category: 'clinical',
+    defaultEnabled: true,
+    defaultPayload: {
+      title: 'Novo paciente conectado! 🎉',
+      body: 'Um paciente aceitou seu convite e já está disponível no seu painel.',
+      clickAction: '/prof/dashboard',
+      priority: 'high',
+    },
+    configSchema: [],
+  },
+  {
+    id: 'patient_milestone',
+    name: 'Marco do Paciente',
+    description: 'Notifica o profissional sobre marcos de desenvolvimento dos pacientes',
+    channel: 'B2B',
+    category: 'clinical',
+    defaultEnabled: false,
+    defaultPayload: {
+      title: 'Marco de desenvolvimento registrado! 🏆',
+      body: 'Um paciente registrou um novo marco de desenvolvimento. Confira no painel.',
+      clickAction: '/prof/dashboard',
+    },
+    configSchema: [],
+  },
+  // B2B - Engagement
+  {
+    id: 'prof_weekly_summary',
+    name: 'Resumo Semanal Profissional',
+    description: 'Resumo semanal com visão geral de todos os pacientes',
+    channel: 'B2B',
+    category: 'engagement',
+    defaultEnabled: false,
+    defaultPayload: {
+      title: 'Resumo semanal dos pacientes 📊',
+      body: 'Confira o resumo de atividade dos seus pacientes nesta semana.',
+      clickAction: '/prof/dashboard',
+    },
+    configSchema: [
+      { key: 'dayOfWeek', label: 'Dia da semana (0=Dom, 6=Sáb)', type: 'number', default: 1 },
+    ],
+  },
+  // System
+  {
+    id: 'system_maintenance',
+    name: 'Manutenção do Sistema',
+    description: 'Avisa sobre manutenções programadas (envio manual pelo admin)',
+    channel: 'INTERNAL',
+    category: 'system',
+    defaultEnabled: false,
+    defaultPayload: {
+      title: 'Manutenção programada 🔧',
+      body: 'O OlieCare passará por manutenção. O serviço pode ficar indisponível por alguns minutos.',
+    },
+    configSchema: [],
+  },
+];

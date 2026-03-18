@@ -18,6 +18,8 @@ import {
   getTemplatePreview,
   getAllTemplatePreviews,
 } from '../services/email.service';
+import { PushNotificationService, PUSH_TRIGGERS } from '../services/push-notification.service';
+import { DeviceTokenService } from '../services/device-token.service';
 import { AuthenticatedRequest, ApiResponse } from '../types';
 import { PlanType, UserStatus } from '@prisma/client';
 
@@ -120,6 +122,19 @@ export const testEmailSchema = z.object({
 
 export const templatePreviewSchema = z.object({
   type: z.string(),
+});
+
+export const pushBroadcastSchema = z.object({
+  segment: z.enum(['all', 'b2c', 'b2b', 'premium', 'free']),
+  title: z.string().min(1).max(100),
+  body: z.string().min(1).max(300),
+  clickAction: z.string().optional(),
+  priority: z.enum(['default', 'high']).optional(),
+});
+
+export const pushTriggerUpdateSchema = z.object({
+  enabled: z.boolean(),
+  config: z.record(z.unknown()).optional(),
 });
 
 export const communicationsQuerySchema = z.object({
@@ -938,6 +953,152 @@ export class AdminController {
         success: true,
         message: `Email de teste (${type}) enviado para ${email}`,
         data: { email, type, sentAt: new Date().toISOString() },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // ==========================================
+  // Push Notifications (Admin)
+  // ==========================================
+
+  /**
+   * GET /admin/push/stats
+   * Push notification stats (device tokens + push logs)
+   */
+  static async getPushStats(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const tokenStats = await DeviceTokenService.getStats();
+      const capabilities = PushNotificationService.getCapabilities();
+
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const thirtyDaysAgo = new Date(now);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const [pushTotal, pushToday, pushLast30, pushByChannel] = await Promise.all([
+        prisma.emailCommunication.count({ where: { templateType: { startsWith: 'push_' } } }),
+        prisma.emailCommunication.count({ where: { templateType: { startsWith: 'push_' }, sentAt: { gte: today } } }),
+        prisma.emailCommunication.count({ where: { templateType: { startsWith: 'push_' }, sentAt: { gte: thirtyDaysAgo } } }),
+        prisma.emailCommunication.groupBy({
+          by: ['channel'],
+          where: { templateType: { startsWith: 'push_' } },
+          _count: { id: true },
+        }),
+      ]);
+
+      const channelMap: Record<string, number> = {};
+      pushByChannel.forEach(c => { channelMap[c.channel] = c._count.id; });
+
+      res.json({
+        success: true,
+        data: {
+          devices: tokenStats,
+          capabilities,
+          pushSends: {
+            total: pushTotal,
+            today: pushToday,
+            last30Days: pushLast30,
+            byChannel: channelMap,
+          },
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /admin/push/triggers
+   * Returns all predefined push triggers with their current configuration
+   */
+  static async getPushTriggers(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      res.json({
+        success: true,
+        data: PUSH_TRIGGERS.map(t => ({
+          ...t,
+          enabled: t.defaultEnabled,
+        })),
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /admin/push/broadcast
+   * Send push notification to a user segment
+   */
+  static async sendPushBroadcast(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { segment, title, body, clickAction, priority } = pushBroadcastSchema.parse(req.body);
+
+      const result = await PushNotificationService.sendToSegment(segment, {
+        title,
+        body,
+        clickAction: clickAction || '/',
+        priority: priority || 'default',
+        icon: '/icon-192x192.png',
+      });
+
+      res.json({
+        success: true,
+        message: `Push broadcast enviado para segmento "${segment}"`,
+        data: {
+          ...result,
+          segment,
+          sentAt: new Date().toISOString(),
+          sentBy: req.user?.email,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /admin/push/test
+   * Send a test push to the admin's own devices
+   */
+  static async sendPushTest(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const userId = req.user!.userId;
+      const results = await PushNotificationService.sendToUser(userId, {
+        title: 'Teste de Push - OlieCare 🌿',
+        body: 'Esta é uma notificação de teste enviada pelo painel admin.',
+        clickAction: '/admin/communications',
+        icon: '/icon-192x192.png',
+        priority: 'high',
+      });
+
+      await PushNotificationService.logPushCommunication('test', 'INTERNAL', userId, {
+        sentBy: req.user?.email,
+      });
+
+      res.json({
+        success: true,
+        message: results.length > 0
+          ? `Push de teste enviado para ${results.filter(r => r.success).length} dispositivo(s)`
+          : 'Nenhum dispositivo registrado para o seu usuário',
+        data: { results, sentAt: new Date().toISOString() },
       });
     } catch (error) {
       next(error);
