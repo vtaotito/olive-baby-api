@@ -20,8 +20,9 @@ import {
 } from '../services/email.service';
 import { PushNotificationService, PUSH_TRIGGERS } from '../services/push-notification.service';
 import { DeviceTokenService } from '../services/device-token.service';
+import { JourneyService } from '../services/journey.service';
 import { AuthenticatedRequest, ApiResponse } from '../types';
-import { PlanType, UserStatus } from '@prisma/client';
+import { PlanType, UserStatus, JourneyStatus } from '@prisma/client';
 
 // ==========================================
 // Validation Schemas
@@ -135,6 +136,50 @@ export const pushBroadcastSchema = z.object({
 export const pushTriggerUpdateSchema = z.object({
   enabled: z.boolean(),
   config: z.record(z.unknown()).optional(),
+});
+
+export const journeyCreateSchema = z.object({
+  name: z.string().min(1).max(120),
+  description: z.string().max(500).optional(),
+  category: z.enum(['engagement', 'onboarding', 'premium', 'invites', 'retention']),
+  audience: z.enum(['all', 'b2c', 'b2b', 'premium', 'free']),
+  priority: z.number().int().optional(),
+  tags: z.array(z.string()).optional(),
+  steps: z.array(z.object({
+    type: z.enum(['email', 'push', 'delay', 'condition']),
+    name: z.string().min(1).max(120),
+    stepOrder: z.number().int().min(0),
+    config: z.record(z.unknown()),
+    variables: z.array(z.record(z.unknown())).optional(),
+  })).optional(),
+});
+
+export const journeyUpdateSchema = z.object({
+  name: z.string().min(1).max(120).optional(),
+  description: z.string().max(500).optional(),
+  category: z.enum(['engagement', 'onboarding', 'premium', 'invites', 'retention']).optional(),
+  audience: z.enum(['all', 'b2c', 'b2b', 'premium', 'free']).optional(),
+  priority: z.number().int().optional(),
+  tags: z.array(z.string()).optional(),
+  status: z.enum(['DRAFT', 'ACTIVE', 'PAUSED', 'COMPLETED']).optional(),
+});
+
+export const journeyStepsReplaceSchema = z.object({
+  steps: z.array(z.object({
+    type: z.enum(['email', 'push', 'delay', 'condition']),
+    name: z.string().min(1).max(120),
+    stepOrder: z.number().int().min(0),
+    config: z.record(z.unknown()),
+    variables: z.array(z.record(z.unknown())).optional(),
+  })),
+});
+
+export const journeyListSchema = z.object({
+  category: z.enum(['engagement', 'onboarding', 'premium', 'invites', 'retention']).optional(),
+  audience: z.enum(['all', 'b2c', 'b2b', 'premium', 'free']).optional(),
+  status: z.enum(['DRAFT', 'ACTIVE', 'PAUSED', 'COMPLETED']).optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(50),
 });
 
 export const communicationsQuerySchema = z.object({
@@ -1023,12 +1068,54 @@ export class AdminController {
     next: NextFunction
   ): Promise<void> {
     try {
+      const savedConfigs = await prisma.triggerConfig.findMany();
+      const configMap = new Map(savedConfigs.map(c => [c.triggerId, c]));
+
       res.json({
         success: true,
-        data: PUSH_TRIGGERS.map(t => ({
-          ...t,
-          enabled: t.defaultEnabled,
-        })),
+        data: PUSH_TRIGGERS.map(t => {
+          const saved = configMap.get(t.id);
+          return {
+            ...t,
+            enabled: saved ? saved.enabled : t.defaultEnabled,
+            savedConfig: saved?.config ?? {},
+          };
+        }),
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * PATCH /admin/push/triggers/:id
+   * Update trigger enabled state and config (persist to DB)
+   */
+  static async updatePushTrigger(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { enabled, config } = pushTriggerUpdateSchema.parse(req.body);
+
+      const trigger = PUSH_TRIGGERS.find(t => t.id === id);
+      if (!trigger) {
+        res.status(404).json({ success: false, message: 'Trigger não encontrado' });
+        return;
+      }
+
+      const saved = await prisma.triggerConfig.upsert({
+        where: { triggerId: id },
+        update: { enabled, config: config as any ?? {} },
+        create: { triggerId: id, enabled, config: config as any ?? {} },
+      });
+
+      res.json({
+        success: true,
+        message: `Trigger "${trigger.name}" ${enabled ? 'ativado' : 'desativado'}`,
+        data: { ...trigger, enabled: saved.enabled, savedConfig: saved.config },
       });
     } catch (error) {
       next(error);
@@ -1103,6 +1190,123 @@ export class AdminController {
     } catch (error) {
       next(error);
     }
+  }
+
+  // ==========================================
+  // Journeys
+  // ==========================================
+
+  static async listJourneys(
+    req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction
+  ): Promise<void> {
+    try {
+      const filters = journeyListSchema.parse(req.query);
+      const result = await JourneyService.list(filters as any);
+      res.json({ success: true, data: result });
+    } catch (error) { next(error); }
+  }
+
+  static async getJourney(
+    req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction
+  ): Promise<void> {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const journey = await JourneyService.getById(id);
+      if (!journey) { res.status(404).json({ success: false, message: 'Jornada não encontrada' }); return; }
+      res.json({ success: true, data: journey });
+    } catch (error) { next(error); }
+  }
+
+  static async createJourney(
+    req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction
+  ): Promise<void> {
+    try {
+      const input = journeyCreateSchema.parse(req.body);
+      const journey = await JourneyService.create(input as any);
+      res.status(201).json({ success: true, data: journey, message: 'Jornada criada' });
+    } catch (error) { next(error); }
+  }
+
+  static async updateJourney(
+    req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction
+  ): Promise<void> {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const input = journeyUpdateSchema.parse(req.body);
+      const journey = await JourneyService.update(id, input as any);
+      res.json({ success: true, data: journey, message: 'Jornada atualizada' });
+    } catch (error) { next(error); }
+  }
+
+  static async deleteJourney(
+    req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction
+  ): Promise<void> {
+    try {
+      const id = parseInt(req.params.id, 10);
+      await JourneyService.delete(id);
+      res.json({ success: true, message: 'Jornada excluída' });
+    } catch (error) { next(error); }
+  }
+
+  static async activateJourney(
+    req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction
+  ): Promise<void> {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const { active } = z.object({ active: z.boolean() }).parse(req.body);
+      const journey = await JourneyService.activate(id, active);
+      res.json({ success: true, data: journey, message: active ? 'Jornada ativada' : 'Jornada pausada' });
+    } catch (error) { next(error); }
+  }
+
+  static async replaceJourneySteps(
+    req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction
+  ): Promise<void> {
+    try {
+      const journeyId = parseInt(req.params.id, 10);
+      const { steps } = journeyStepsReplaceSchema.parse(req.body);
+      const result = await JourneyService.replaceSteps(journeyId, steps as any);
+      res.json({ success: true, data: result, message: 'Etapas atualizadas' });
+    } catch (error) { next(error); }
+  }
+
+  static async getJourneyMetrics(
+    req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction
+  ): Promise<void> {
+    try {
+      const metrics = await JourneyService.getMetrics();
+      res.json({ success: true, data: metrics });
+    } catch (error) { next(error); }
+  }
+
+  static async getJourneyTemplates(
+    req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction
+  ): Promise<void> {
+    try {
+      const templates = await JourneyService.getTemplateJourneys();
+      res.json({ success: true, data: templates });
+    } catch (error) { next(error); }
+  }
+
+  static async createJourneyFromTemplate(
+    req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction
+  ): Promise<void> {
+    try {
+      const { templateId } = z.object({ templateId: z.string() }).parse(req.body);
+      const templates = await JourneyService.getTemplateJourneys();
+      const tmpl = templates.find(t => t.id === templateId);
+      if (!tmpl) { res.status(404).json({ success: false, message: 'Template não encontrado' }); return; }
+
+      const journey = await JourneyService.create({
+        name: tmpl.name,
+        description: tmpl.description,
+        category: tmpl.category,
+        audience: tmpl.audience,
+        steps: tmpl.steps,
+      });
+
+      res.status(201).json({ success: true, data: journey, message: `Jornada "${tmpl.name}" criada a partir do template` });
+    } catch (error) { next(error); }
   }
 }
 

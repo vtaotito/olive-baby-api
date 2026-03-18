@@ -22,6 +22,11 @@ import {
   communicationsQuerySchema,
   communicationsVolumeQuerySchema,
   pushBroadcastSchema,
+  pushTriggerUpdateSchema,
+  journeyCreateSchema,
+  journeyUpdateSchema,
+  journeyStepsReplaceSchema,
+  journeyListSchema,
 } from '../controllers/admin.controller';
 
 const router = Router();
@@ -225,6 +230,28 @@ router.post(
 
 // POST /admin/push/test - Send test push to admin
 router.post('/push/test', AdminController.sendPushTest);
+
+// PATCH /admin/push/triggers/:id - Update trigger config (persist)
+router.patch(
+  '/push/triggers/:id',
+  validateBody(pushTriggerUpdateSchema),
+  AdminController.updatePushTrigger
+);
+
+// ==========================================
+// Journeys (Communication Journeys)
+// ==========================================
+
+router.get('/journeys', AdminController.listJourneys);
+router.get('/journeys/metrics', AdminController.getJourneyMetrics);
+router.get('/journeys/templates', AdminController.getJourneyTemplates);
+router.post('/journeys/from-template', AdminController.createJourneyFromTemplate);
+router.get('/journeys/:id', AdminController.getJourney);
+router.post('/journeys', AdminController.createJourney);
+router.patch('/journeys/:id', AdminController.updateJourney);
+router.delete('/journeys/:id', AdminController.deleteJourney);
+router.post('/journeys/:id/activate', AdminController.activateJourney);
+router.put('/journeys/:id/steps', AdminController.replaceJourneySteps);
 
 // ==========================================
 // Testing & Diagnostics

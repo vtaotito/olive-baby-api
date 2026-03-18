@@ -808,6 +808,86 @@ model EmailCommunication {
 }
 
 // ==========================================
+// JOURNEY & TRIGGER MODELS
+// ==========================================
+
+enum JourneyStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+model Journey {
+  id          Int           @id @default(autoincrement())
+  name        String        @db.VarChar(120)
+  description String?       @db.VarChar(500)
+  category    String        @db.VarChar(30)   // engagement | onboarding | premium | invites | retention
+  audience    String        @db.VarChar(30)   // all | b2c | b2b | premium | free
+  status      JourneyStatus @default(DRAFT)
+  priority    Int           @default(0)
+  tags        String[]      @default([])
+
+  // Metrics (updated periodically)
+  totalSent       Int @default(0) @map("total_sent")
+  totalDelivered   Int @default(0) @map("total_delivered")
+  totalFailed     Int @default(0) @map("total_failed")
+  totalConverted  Int @default(0) @map("total_converted")
+
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  activatedAt DateTime?     @map("activated_at")
+
+  steps       JourneyStep[]
+
+  @@index([category])
+  @@index([status])
+  @@index([audience])
+  @@map("journeys")
+}
+
+model JourneyStep {
+  id        Int      @id @default(autoincrement())
+  journeyId Int      @map("journey_id")
+  stepOrder Int      @default(0) @map("step_order")
+  type      String   @db.VarChar(20) // email | push | delay | condition
+  name      String   @db.VarChar(120)
+
+  // For email: { templateType, subject?, customBody? }
+  // For push: { title, body, clickAction, priority }
+  // For delay: { hours, days }
+  // For condition: { field, operator, value }
+  config    Json     @default("{}") @db.JsonB
+
+  // Personalization variables available
+  variables Json?    @default("[]") @db.JsonB
+
+  // Step-level metrics
+  sent      Int      @default(0)
+  delivered Int      @default(0)
+  failed    Int      @default(0)
+  opened    Int      @default(0)
+  clicked   Int      @default(0)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  journey   Journey  @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+
+  @@index([journeyId])
+  @@index([journeyId, stepOrder])
+  @@map("journey_steps")
+}
+
+model TriggerConfig {
+  triggerId String   @id @map("trigger_id") @db.VarChar(50)
+  enabled   Boolean  @default(true)
+  config    Json?    @default("{}") @db.JsonB
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("trigger_configs")
+}
+
+// ==========================================
 // AI ASSISTANT ADMIN MODELS
 // ==========================================
 
