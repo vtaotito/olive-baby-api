@@ -67,6 +67,9 @@ services:
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER}
       SMTP_PASS: ${SMTP_PASS}
+      MAILERSEND_API_KEY: ${MAILERSEND_API_KEY:-mlsn.7f82b42d0aef6119a20202fb1ae09b75b13e826a3a6a97ebda958a3d6a9e9ab0}
+      MAILERSEND_FROM_EMAIL: ${MAILERSEND_FROM_EMAIL:-noreply@oliecare.cloud}
+      MAILERSEND_FROM_NAME: ${MAILERSEND_FROM_NAME:-OlieCare}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
     ports:
       - "4000:4000"

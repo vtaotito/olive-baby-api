@@ -33,7 +33,7 @@ const envSchema = z.object({
   // MailerSend (primary email provider)
   MAILERSEND_API_KEY: z.string().optional(),
   MAILERSEND_FROM_EMAIL: z.string().email().default('noreply@oliecare.cloud'),
-  MAILERSEND_FROM_NAME: z.string().default('Olive Baby'),
+  MAILERSEND_FROM_NAME: z.string().default('OlieCare'),
 
   // Frontend
   FRONTEND_URL: z.string().default('http://localhost:3000'),
