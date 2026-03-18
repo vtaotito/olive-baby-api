@@ -235,6 +235,9 @@ router.post(
 // POST /admin/push/test - Send test push to admin
 router.post('/push/test', AdminController.sendPushTest);
 
+// GET /admin/communications/health - Communications health status
+router.get('/communications/health', AdminController.getCommunicationsHealth);
+
 // PATCH /admin/push/triggers/:id - Update trigger config (persist)
 router.patch(
   '/push/triggers/:id',

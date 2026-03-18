@@ -1223,6 +1223,76 @@ export class AdminController {
   }
 
   // ==========================================
+  // Communications Health
+  // ==========================================
+
+  static async getCommunicationsHealth(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+      const [emailToday, emailLast7d, pushToday, pushLast7d, recentFails, deviceCount] = await Promise.all([
+        prisma.emailCommunication.count({ where: { sentAt: { gte: today }, templateType: { not: { startsWith: 'push_' } } } }),
+        prisma.emailCommunication.count({ where: { sentAt: { gte: last7d }, templateType: { not: { startsWith: 'push_' } } } }),
+        prisma.emailCommunication.count({ where: { sentAt: { gte: today }, templateType: { startsWith: 'push_' } } }),
+        prisma.emailCommunication.count({ where: { sentAt: { gte: last7d }, templateType: { startsWith: 'push_' } } }),
+        prisma.systemAlert.count({
+          where: {
+            component: { in: ['email', 'push'] },
+            status: { in: ['NEW', 'SEEN'] },
+            createdAt: { gte: last24h },
+          },
+        }),
+        prisma.deviceToken.count({ where: { isActive: true } }),
+      ]);
+
+      const hasMailerSend = !!process.env.MAILERSEND_API_KEY;
+      const hasSmtp = !!(process.env.SMTP_HOST && process.env.SMTP_USER);
+      const hasVapid = !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
+      const hasFcm = !!(process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY);
+
+      const emailStatus = hasMailerSend ? 'operational' : hasSmtp ? 'degraded' : 'down';
+      const pushStatus = hasVapid ? 'operational' : 'down';
+
+      res.json({
+        success: true,
+        data: {
+          email: {
+            status: emailStatus,
+            provider: hasMailerSend ? 'MailerSend' : hasSmtp ? 'SMTP' : 'Nenhum',
+            fromEmail: process.env.MAILERSEND_FROM_EMAIL || 'noreply@oliecare.cloud',
+            alertEmail: process.env.ALERT_EMAIL || '—',
+            sentToday: emailToday,
+            sentLast7d: emailLast7d,
+            hasMailerSend,
+            hasSmtp,
+          },
+          push: {
+            status: pushStatus,
+            vapid: hasVapid,
+            fcm: hasFcm,
+            activeDevices: deviceCount,
+            sentToday: pushToday,
+            sentLast7d: pushLast7d,
+          },
+          alerts: {
+            unresolvedCommsAlerts: recentFails,
+          },
+          updatedAt: now.toISOString(),
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // ==========================================
   // Journeys
   // ==========================================
 
