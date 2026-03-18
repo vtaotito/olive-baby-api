@@ -440,14 +440,28 @@ export class PushNotificationService {
     noToken += usersWithNoResults;
 
     const channel = segment === 'b2b' ? 'B2B' : segment === 'all' ? 'INTERNAL' : 'B2C';
-    await PushNotificationService.logPushCommunication('broadcast', channel, undefined, {
-      segment,
-      title: payload.title,
-      sent,
-      failed,
-      noToken,
-      totalUsers: users.length,
-    });
+    const segmentLabel = { all: 'todos', b2c: 'B2C', b2b: 'B2B', premium: 'Premium', free: 'Free' }[segment] || segment;
+
+    try {
+      await prisma.emailCommunication.create({
+        data: {
+          templateType: 'push_broadcast',
+          channel,
+          recipientDomain: `${segmentLabel} (${users.length} usuários, ${sent} enviados)`,
+          metadata: {
+            segment,
+            title: payload.title,
+            body: payload.body,
+            sent,
+            failed,
+            noToken,
+            totalUsers: users.length,
+          } as any,
+        },
+      });
+    } catch (err) {
+      logger.warn('[Push] Broadcast log failed', { error: (err as Error).message });
+    }
 
     return { sent, failed, noToken };
   }
