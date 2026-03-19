@@ -213,6 +213,225 @@ export class JourneyService {
   static async getTemplateJourneys() {
     return JOURNEY_TEMPLATES;
   }
+
+  /**
+   * Execute a single journey step for a set of users.
+   * Called by n8n workflows or the internal scheduler.
+   */
+  static async executeStep(journeyId: number, stepId: number): Promise<{
+    sent: number; delivered: number; failed: number;
+  }> {
+    const step = await prisma.journeyStep.findUnique({
+      where: { id: stepId },
+      include: { journey: true },
+    });
+    if (!step || step.journeyId !== journeyId) {
+      throw new Error('Step not found or does not belong to journey');
+    }
+    if (step.journey.status !== 'ACTIVE') {
+      throw new Error('Journey is not active');
+    }
+
+    const config = step.config as Record<string, unknown>;
+    let sent = 0, delivered = 0, failed = 0;
+
+    if (step.type === 'email') {
+      const { sendEmailByTemplate } = await import('./email.service');
+      const audience = step.journey.audience;
+      const users = await JourneyService.getAudienceUsers(audience);
+      for (const user of users) {
+        try {
+          const templateType = (config.templateType as string) || 'welcome';
+          const subject = (config.subject as string) || 'OlieCare';
+          await sendEmailByTemplate(templateType, user.email, {
+            userName: user.name,
+            subject,
+            customBody: config.customBody as string | undefined,
+          });
+          sent++; delivered++;
+        } catch {
+          sent++; failed++;
+        }
+      }
+    } else if (step.type === 'push') {
+      const { PushNotificationService } = await import('./push-notification.service');
+      const audience = step.journey.audience;
+      const users = await JourneyService.getAudienceUsers(audience);
+      for (const user of users) {
+        try {
+          const results = await PushNotificationService.sendToUser(user.id, {
+            title: (config.title as string) || 'OlieCare',
+            body: (config.body as string) || '',
+            clickAction: config.clickAction as string | undefined,
+            priority: (config.priority as 'default' | 'high') || 'default',
+          });
+          sent++;
+          if (results.some(r => r.success)) delivered++;
+          else if (results.length === 0) { /* no tokens */ }
+          else failed++;
+        } catch {
+          sent++; failed++;
+        }
+      }
+    }
+
+    // Update step metrics
+    await prisma.journeyStep.update({
+      where: { id: stepId },
+      data: {
+        sent: { increment: sent },
+        delivered: { increment: delivered },
+        failed: { increment: failed },
+      },
+    });
+
+    // Update journey totals
+    await prisma.journey.update({
+      where: { id: journeyId },
+      data: {
+        totalSent: { increment: sent },
+        totalDelivered: { increment: delivered },
+        totalFailed: { increment: failed },
+      },
+    });
+
+    logger.info(`[Journey] Step ${stepId} executed: sent=${sent}, delivered=${delivered}, failed=${failed}`);
+    return { sent, delivered, failed };
+  }
+
+  /**
+   * Execute ALL steps of an active journey sequentially (for n8n orchestration).
+   * Delay/condition steps return metadata for n8n to handle.
+   */
+  static async executeJourney(journeyId: number): Promise<{
+    journeyId: number;
+    status: string;
+    stepsExecuted: Array<{
+      stepId: number;
+      type: string;
+      name: string;
+      result: Record<string, unknown>;
+    }>;
+  }> {
+    const journey = await prisma.journey.findUnique({
+      where: { id: journeyId },
+      include: { steps: { orderBy: { stepOrder: 'asc' } } },
+    });
+    if (!journey) throw new Error('Journey not found');
+    if (journey.status !== 'ACTIVE') throw new Error('Journey is not active');
+
+    const stepsExecuted: Array<{
+      stepId: number; type: string; name: string; result: Record<string, unknown>;
+    }> = [];
+
+    for (const step of journey.steps) {
+      const config = step.config as Record<string, unknown>;
+
+      if (step.type === 'delay') {
+        stepsExecuted.push({
+          stepId: step.id,
+          type: 'delay',
+          name: step.name,
+          result: { action: 'wait', hours: config.hours ?? 24 },
+        });
+        break; // n8n handles the delay
+      }
+
+      if (step.type === 'condition') {
+        stepsExecuted.push({
+          stepId: step.id,
+          type: 'condition',
+          name: step.name,
+          result: {
+            action: 'evaluate',
+            field: config.field,
+            operator: config.operator,
+            value: config.value,
+          },
+        });
+        break; // n8n evaluates the condition
+      }
+
+      // Execute email/push steps
+      const execResult = await JourneyService.executeStep(journeyId, step.id);
+      stepsExecuted.push({
+        stepId: step.id,
+        type: step.type,
+        name: step.name,
+        result: execResult as unknown as Record<string, unknown>,
+      });
+    }
+
+    return { journeyId, status: journey.status, stepsExecuted };
+  }
+
+  /**
+   * Get users matching a journey audience segment
+   */
+  static async getAudienceUsers(audience: string): Promise<Array<{ id: number; email: string; name: string }>> {
+    const where: Prisma.UserWhereInput = { isActive: true };
+
+    if (audience === 'b2c') {
+      where.role = { in: ['PARENT', 'CAREGIVER'] };
+    } else if (audience === 'b2b') {
+      where.role = { in: ['PEDIATRICIAN', 'SPECIALIST'] };
+    } else if (audience === 'premium') {
+      where.plan = { type: { in: ['PREMIUM', 'PROFESSIONAL_BASIC', 'PROFESSIONAL_ADVANCED', 'PROFESSIONAL_PRO'] } };
+    } else if (audience === 'free') {
+      where.OR = [{ planId: null }, { plan: { type: 'FREE' } }];
+    }
+    // 'all' = no additional filter
+
+    const users = await prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        email: true,
+        caregiver: { select: { fullName: true } },
+        professional: { select: { fullName: true } },
+      },
+      take: 5000,
+    });
+
+    return users.map((u) => ({
+      id: u.id,
+      email: u.email,
+      name: u.caregiver?.fullName ?? u.professional?.fullName ?? u.email.split('@')[0] ?? 'Usuário',
+    }));
+  }
+
+  /**
+   * Get execution history summary for n8n dashboard
+   */
+  static async getExecutionSummary() {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const [activeJourneys, totalStepsSent, emailsToday, pushToday, emailsWeek, pushWeek] = await Promise.all([
+      prisma.journey.count({ where: { status: 'ACTIVE' } }),
+      prisma.journeyStep.aggregate({ _sum: { sent: true, delivered: true, failed: true } }),
+      prisma.emailCommunication.count({ where: { sentAt: { gte: today }, templateType: { not: { startsWith: 'push_' } } } }),
+      prisma.emailCommunication.count({ where: { sentAt: { gte: today }, templateType: { startsWith: 'push_' } } }),
+      prisma.emailCommunication.count({ where: { sentAt: { gte: last7d }, templateType: { not: { startsWith: 'push_' } } } }),
+      prisma.emailCommunication.count({ where: { sentAt: { gte: last7d }, templateType: { startsWith: 'push_' } } }),
+    ]);
+
+    return {
+      activeJourneys,
+      steps: {
+        totalSent: totalStepsSent._sum.sent ?? 0,
+        totalDelivered: totalStepsSent._sum.delivered ?? 0,
+        totalFailed: totalStepsSent._sum.failed ?? 0,
+      },
+      communications: {
+        emailsToday,
+        pushToday,
+        emailsWeek,
+        pushWeek,
+      },
+    };
+  }
 }
 
 // ==========================================

@@ -909,5 +909,70 @@ export function getAllTemplatePreviews(): Array<{ type: string; name: string; ch
   });
 }
 
+/**
+ * Send email by template type (n8n integration).
+ * Supports predefined templates or custom body.
+ */
+export async function sendEmailByTemplate(
+  templateType: string,
+  to: string | string[],
+  options: {
+    subject?: string;
+    customBody?: string;
+    userName?: string;
+    [key: string]: unknown;
+  } = {}
+): Promise<void> {
+  const recipients = Array.isArray(to) ? to : [to];
+  const subject = (options.subject as string) || 'OlieCare';
+  const customBody = options.customBody as string | undefined;
+  const userName = options.userName as string | undefined;
+
+  let html: string;
+
+  if (customBody) {
+    const content = `
+      <div class="header"><div class="logo">🌿</div><h2>${subject}</h2></div>
+      <div class="content">
+        <p>Olá${userName ? ` <strong>${userName}</strong>` : ''},</p>
+        <div>${customBody}</div>
+      </div>
+    `;
+    html = wrapTemplate(content, subject);
+  } else if (templateType === 'welcome') {
+    for (const email of recipients) {
+      await sendWelcomeEmail({ email, userName: userName || 'Usuário' });
+    }
+    return;
+  } else {
+    const preview = getTemplatePreview(templateType);
+    if (preview) {
+      html = preview.html;
+    } else {
+      const content = `
+        <div class="header"><div class="logo">🌿</div><h2>${subject}</h2></div>
+        <div class="content">
+          <p>Olá${userName ? ` <strong>${userName}</strong>` : ''},</p>
+          <p>Mensagem do OlieCare.</p>
+        </div>
+      `;
+      html = wrapTemplate(content, subject);
+    }
+  }
+
+  const success = await sendEmail({
+    to: recipients,
+    subject,
+    html,
+  });
+
+  if (!success) {
+    throw new Error('Failed to send email');
+  }
+
+  const templateForLog = customBody ? 'n8n_custom' : templateType;
+  await logEmailCommunication(templateForLog, 'B2C', recipients);
+}
+
 // Export for testing
 export { sendEmail, mailerSend };

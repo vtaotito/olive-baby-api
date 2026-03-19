@@ -246,6 +246,28 @@ router.patch(
 );
 
 // ==========================================
+// n8n Integration
+// ==========================================
+
+// POST /admin/n8n/execute-journey - Execute a journey via n8n
+router.post('/n8n/execute-journey', AdminController.n8nExecuteJourney);
+
+// POST /admin/n8n/execute-step - Execute a specific journey step via n8n
+router.post('/n8n/execute-step', AdminController.n8nExecuteStep);
+
+// GET /admin/n8n/execution-summary - Execution metrics for n8n dashboard
+router.get('/n8n/execution-summary', AdminController.n8nExecutionSummary);
+
+// GET /admin/n8n/active-journeys - Active journeys for n8n orchestration
+router.get('/n8n/active-journeys', AdminController.n8nActiveJourneys);
+
+// POST /admin/n8n/trigger-push - Execute a push trigger via n8n
+router.post('/n8n/trigger-push', AdminController.n8nTriggerPush);
+
+// POST /admin/n8n/send-email - Send email via n8n
+router.post('/n8n/send-email', AdminController.n8nSendEmail);
+
+// ==========================================
 // Journeys (Communication Journeys)
 // ==========================================
 

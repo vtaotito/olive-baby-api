@@ -1293,6 +1293,153 @@ export class AdminController {
   }
 
   // ==========================================
+  // n8n Integration
+  // ==========================================
+
+  /**
+   * POST /admin/n8n/execute-journey
+   * Called by n8n to trigger journey execution
+   */
+  static async n8nExecuteJourney(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { journeyId } = req.body;
+      if (!journeyId || typeof journeyId !== 'number') {
+        res.status(400).json({ success: false, message: 'journeyId is required' });
+        return;
+      }
+      const result = await JourneyService.executeJourney(journeyId);
+      res.json({ success: true, data: result });
+    } catch (error: any) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  }
+
+  /**
+   * POST /admin/n8n/execute-step
+   * Called by n8n to execute a specific journey step
+   */
+  static async n8nExecuteStep(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { journeyId, stepId } = req.body;
+      if (!journeyId || !stepId) {
+        res.status(400).json({ success: false, message: 'journeyId and stepId are required' });
+        return;
+      }
+      const result = await JourneyService.executeStep(journeyId, stepId);
+      res.json({ success: true, data: result });
+    } catch (error: any) {
+      res.status(400).json({ success: false, message: error.message });
+    }
+  }
+
+  /**
+   * GET /admin/n8n/execution-summary
+   * Returns execution summary for n8n dashboard
+   */
+  static async n8nExecutionSummary(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const summary = await JourneyService.getExecutionSummary();
+      res.json({ success: true, data: summary });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /admin/n8n/active-journeys
+   * Returns active journeys with their steps for n8n orchestration
+   */
+  static async n8nActiveJourneys(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const journeys = await prisma.journey.findMany({
+        where: { status: 'ACTIVE' },
+        include: { steps: { orderBy: { stepOrder: 'asc' } } },
+        orderBy: { priority: 'desc' },
+      });
+      res.json({ success: true, data: journeys });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /admin/n8n/trigger-push
+   * Called by n8n to execute a push trigger
+   */
+  static async n8nTriggerPush(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { triggerId, segment, payload } = req.body;
+      if (!triggerId || !segment || !payload) {
+        res.status(400).json({ success: false, message: 'triggerId, segment, and payload are required' });
+        return;
+      }
+
+      const triggerConfig = await prisma.triggerConfig.findUnique({ where: { triggerId } });
+      if (triggerConfig && !triggerConfig.enabled) {
+        res.json({ success: true, data: { sent: 0, message: 'Trigger is disabled' } });
+        return;
+      }
+
+      const result = await PushNotificationService.sendToSegment(
+        segment,
+        payload
+      );
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /admin/n8n/send-email
+   * Called by n8n to send an email using the platform's email service
+   */
+  static async n8nSendEmail(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { to, subject, templateType, customBody, variables } = req.body;
+      if (!to || !subject) {
+        res.status(400).json({ success: false, message: 'to and subject are required' });
+        return;
+      }
+
+      const { sendEmailByTemplate } = await import('../services/email.service');
+      await sendEmailByTemplate(templateType || 'welcome', to, {
+        subject,
+        customBody,
+        userName: variables?.userName,
+        ...variables,
+      });
+      res.json({ success: true, message: 'Email sent' });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  // ==========================================
   // Journeys
   // ==========================================
 
