@@ -1,8 +1,7 @@
 // Olive Baby API - Audit Service
-import { PrismaClient, AuditAction } from '@prisma/client';
+import { AuditAction } from '@prisma/client';
 import { Request } from 'express';
-
-const prisma = new PrismaClient();
+import { prisma } from '../../config/database';
 
 export interface AuditEventData {
   userId?: number;

@@ -1,12 +1,11 @@
 // Olive Baby API - Professional Service
-import { PrismaClient, ProfessionalStatus, ProfessionalRole, RegistrationSource, UserRole } from '@prisma/client';
+import { ProfessionalStatus, ProfessionalRole, RegistrationSource, UserRole } from '@prisma/client';
+import { prisma } from '../config/database';
 import { AppError } from '../utils/errors/AppError';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { requireBabyAccessByCaregiverId, hasBabyAccessByCaregiverId } from '../utils/helpers/baby-permission.helper';
 import { isBabyOwner } from '../utils/helpers/baby-permission.helper';
-
-const prisma = new PrismaClient();
 
 export interface InviteProfessionalData {
   email: string;

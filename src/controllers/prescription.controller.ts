@@ -1,11 +1,9 @@
 // Olive Baby API - Prescription Controller
 import { Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import * as prescriptionService from '../services/prescription.service';
 import { AppError } from '../utils/errors/AppError';
 import { AuthenticatedRequest } from '../types';
-
-const prisma = new PrismaClient();
 
 async function getProfessionalId(userId: number): Promise<number> {
   const prof = await prisma.professional.findUnique({ where: { userId } });

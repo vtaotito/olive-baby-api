@@ -1,12 +1,11 @@
 // Olive Baby API - Monitoring Service
-import { PrismaClient } from '@prisma/client';
+import os from 'os';
 import { Redis } from 'ioredis';
 import { logger } from '../config/logger';
 import { env } from '../config/env';
 import * as emailService from './email.service';
 import { AlertService } from './alert.service';
-
-const prisma = new PrismaClient();
+import { prisma } from '../config/database';
 
 // Cache para evitar alertas duplicados
 const alertCache = new Map<string, number>();
@@ -227,36 +226,56 @@ class MonitoringService {
   }
 
   /**
-   * Verifica uso de memória
+   * Verifica uso de memória.
+   * Compara RSS (memória real do processo) contra a memória total do sistema
+   * ou um limite configurável via MEMORY_LIMIT_MB.
+   * O cálculo antigo (heapUsed/heapTotal) gerava alarmes falsos porque
+   * o V8 expande heapTotal dinamicamente.
    */
   private async checkMemory(): Promise<{ status: 'ok' | 'warning' | 'critical'; usage?: number }> {
     try {
-      const usage = process.memoryUsage();
-      const totalMemory = usage.heapTotal;
-      const usedMemory = usage.heapUsed;
-      const memoryUsage = (usedMemory / totalMemory) * 100;
+      const memUsage = process.memoryUsage();
+      const rssBytes = memUsage.rss;
 
-      if (memoryUsage > 90) {
+      const memoryLimitMb = env.MEMORY_LIMIT_MB
+        ? parseInt(env.MEMORY_LIMIT_MB, 10)
+        : 0;
+      const totalBytes = memoryLimitMb > 0
+        ? memoryLimitMb * 1024 * 1024
+        : os.totalmem();
+
+      const memoryPercent = (rssBytes / totalBytes) * 100;
+
+      const metadata = {
+        usage: memoryPercent,
+        rssMb: Math.round(rssBytes / 1024 / 1024),
+        totalMb: Math.round(totalBytes / 1024 / 1024),
+        heapUsedMb: Math.round(memUsage.heapUsed / 1024 / 1024),
+        heapTotalMb: Math.round(memUsage.heapTotal / 1024 / 1024),
+        externalMb: Math.round(memUsage.external / 1024 / 1024),
+      };
+
+      if (memoryPercent > 90) {
         this.sendAlert({
           level: 'critical',
           title: 'Memory Usage Critical',
-          message: `Memory usage: ${memoryUsage.toFixed(2)}%`,
+          message: `RSS: ${metadata.rssMb}MB / ${metadata.totalMb}MB (${memoryPercent.toFixed(1)}%)`,
           component: 'memory',
-          metadata: { usage: memoryUsage, ...usage },
+          metadata,
         });
-        return { status: 'critical', usage: memoryUsage };
-      } else if (memoryUsage > 80) {
+        return { status: 'critical', usage: memoryPercent };
+      } else if (memoryPercent > 75) {
         this.sendAlert({
           level: 'warning',
           title: 'Memory Usage Warning',
-          message: `Memory usage: ${memoryUsage.toFixed(2)}%`,
+          message: `RSS: ${metadata.rssMb}MB / ${metadata.totalMb}MB (${memoryPercent.toFixed(1)}%)`,
           component: 'memory',
-          metadata: { usage: memoryUsage },
+          metadata,
         });
-        return { status: 'warning', usage: memoryUsage };
+        return { status: 'warning', usage: memoryPercent };
       }
 
-      return { status: 'ok', usage: memoryUsage };
+      return { status: 'ok', usage: memoryPercent };
     } catch (error: any) {
       logger.error('Memory check failed', { error: error.message });
       return { status: 'ok' };

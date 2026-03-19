@@ -1,12 +1,10 @@
 // Olive Baby API - Professional Controller
 import { Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import * as professionalService from '../services/professional.service';
 import * as emailService from '../services/email.service';
 import { AppError } from '../utils/errors/AppError';
 import { AuthenticatedRequest } from '../types';
-
-const prisma = new PrismaClient();
 
 // Helper to get caregiverId from userId
 async function getCaregiverId(userId: number): Promise<number> {

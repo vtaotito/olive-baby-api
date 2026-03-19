@@ -1,8 +1,7 @@
 // Olive Baby API - Admin Analytics Service
 // Advanced analytics: Funnel, Cohorts, Upgrade Candidates, Data Quality
-import { PrismaClient, AuditAction } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { AuditAction } from '@prisma/client';
+import { prisma } from '../config/database';
 
 // ==========================================
 // Types

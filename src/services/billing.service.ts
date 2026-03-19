@@ -2,12 +2,11 @@
 // Stripe integration for subscriptions management
 
 import Stripe from 'stripe';
-import { PrismaClient, SubscriptionStatus, BillingInterval, PlanType } from '@prisma/client';
+import { SubscriptionStatus, BillingInterval, PlanType } from '@prisma/client';
+import { prisma } from '../config/database';
 import { env } from '../config/env';
 import { AppError } from '../utils/errors/AppError';
 import { logger } from '../config/logger';
-
-const prisma = new PrismaClient();
 
 // Initialize Stripe (only if key is configured)
 const stripe = env.STRIPE_SECRET_KEY 

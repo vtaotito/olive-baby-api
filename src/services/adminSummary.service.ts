@@ -1,9 +1,8 @@
 // Olive Baby API - Admin Summary Service
 // Lightweight aggregates for ops and reporting
-import { PrismaClient, VaccineStatus } from '@prisma/client';
+import { VaccineStatus } from '@prisma/client';
+import { prisma } from '../config/database';
 import { AppError } from '../utils/errors/AppError';
-
-const prisma = new PrismaClient();
 
 const WINDOW_REGEX = /^(\d{1,3})h$/;
 const MAX_WINDOW_HOURS = 168;

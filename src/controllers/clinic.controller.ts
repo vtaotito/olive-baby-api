@@ -1,11 +1,9 @@
 // Olive Baby API - Clinic Controller
 import { Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import * as clinicService from '../services/clinic.service';
 import { AppError } from '../utils/errors/AppError';
 import { AuthenticatedRequest } from '../types';
-
-const prisma = new PrismaClient();
 
 async function getProfessionalId(userId: number): Promise<number> {
   const prof = await prisma.professional.findUnique({

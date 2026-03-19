@@ -1,11 +1,10 @@
 // Olive Baby API - Admin AI Service
 // Manages AI Assistant configuration and Knowledge Base
 
-import { PrismaClient, AiConfigStatus, KnowledgeBaseStatus } from '@prisma/client';
+import { AiConfigStatus, KnowledgeBaseStatus } from '@prisma/client';
+import { prisma } from '../config/database';
 import { AppError } from '../utils/errors/AppError';
 import { logger } from '../config/logger';
-
-const prisma = new PrismaClient();
 
 export class AdminAiService {
   // ==========================================

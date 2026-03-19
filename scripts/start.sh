@@ -10,4 +10,4 @@ echo "Applying pending migrations..."
 npx prisma migrate deploy || true
 
 echo "Starting server..."
-node dist/app.js
+node --max-old-space-size=256 dist/app.js

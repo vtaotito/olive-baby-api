@@ -48,6 +48,7 @@ const envSchema = z.object({
   // Monitoring & Alerts
   ALERT_EMAIL: z.string().email().optional(),
   ALERT_WEBHOOK_URL: z.string().url().optional(),
+  MEMORY_LIMIT_MB: z.string().optional(),
 
   // OpenAI / AI Assistant
   OPENAI_API_KEY: z.string().optional(),

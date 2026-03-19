@@ -1,9 +1,8 @@
 // Olive Baby API - Admin Service
-import { PrismaClient, UserRole, UserStatus, PlanType } from '@prisma/client';
+import { UserRole, UserStatus, PlanType } from '@prisma/client';
+import { prisma } from '../config/database';
 import { AppError } from '../utils/errors/AppError';
 import { AuditService } from '../core/entitlements';
-
-const prisma = new PrismaClient();
 
 // ==========================================
 // Types

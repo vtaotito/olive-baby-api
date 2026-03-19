@@ -6,8 +6,17 @@ import crypto from 'crypto';
 
 let redisClient: Redis | null = null;
 
-// Fallback em memória para desenvolvimento
 const memoryStore = new Map<string, { count: number; resetTime: number }>();
+
+const CLEANUP_INTERVAL_MS = 60_000;
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of memoryStore.entries()) {
+    if (v.resetTime < now) {
+      memoryStore.delete(k);
+    }
+  }
+}, CLEANUP_INTERVAL_MS);
 
 /**
  * Inicializa cliente Redis ou usa fallback em memória
@@ -96,15 +105,6 @@ export async function checkRateLimit(
   stored.count++;
   const remaining = Math.max(0, maxRequests - stored.count);
   const allowed = stored.count <= maxRequests;
-
-  // Limpar entradas antigas periodicamente
-  if (Math.random() < 0.01) {
-    for (const [k, v] of memoryStore.entries()) {
-      if (v.resetTime < now) {
-        memoryStore.delete(k);
-      }
-    }
-  }
 
   return { allowed, remaining, resetAt };
 }

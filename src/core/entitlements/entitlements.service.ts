@@ -1,5 +1,6 @@
 // Olive Baby API - Entitlements Service
-import { PrismaClient, PlanType, UserStatus } from '@prisma/client';
+import { PlanType, UserStatus } from '@prisma/client';
+import { prisma } from '../../config/database';
 import { AppError } from '../../utils/errors/AppError';
 import {
   UserEntitlements,
@@ -14,8 +15,6 @@ import {
   FEATURE_DISPLAY_NAMES,
   RESOURCE_DISPLAY_NAMES,
 } from './types';
-
-const prisma = new PrismaClient();
 
 // Cache for plan data (5 minutes TTL)
 const planCache = new Map<number, { data: any; expiry: number }>();

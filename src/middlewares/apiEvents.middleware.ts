@@ -1,10 +1,8 @@
 // Olive Baby API - API Events Logging Middleware
 // Logs 4xx/5xx errors and latency for analytics
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import { AuthenticatedRequest } from '../types';
-
-const prisma = new PrismaClient();
 
 // Routes to skip logging (high volume, low value)
 const SKIP_ROUTES = [

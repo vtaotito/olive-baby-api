@@ -13,10 +13,17 @@ services:
       dockerfile: Dockerfile
     container_name: olivebaby-api
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
     environment:
       NODE_ENV: production
       PORT: 4000
       API_PREFIX: /api/v1
+      MEMORY_LIMIT_MB: "512"
       # Database - conecta ao PostgreSQL existente
       DATABASE_URL: postgresql://olivebaby:OliveBaby@2024Secure!@olivebaby-db:5432/olivebaby?schema=public
       # Redis - conecta ao Redis existente

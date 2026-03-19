@@ -1,8 +1,6 @@
 // Olive Baby API - API Events Service
 // Analytics and error tracking from api_events table
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../config/database';
 
 export interface TopRouteByErrors {
   route: string;
