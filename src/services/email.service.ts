@@ -104,6 +104,87 @@ class MailerSendClient {
 }
 
 // ==========================================
+// Brevo API Client (secondary provider)
+// ==========================================
+
+class BrevoClient {
+  private apiKey: string;
+  private fromEmail: string;
+  private fromName: string;
+  private baseUrl = 'https://api.brevo.com/v3';
+
+  constructor() {
+    this.apiKey = env.BREVO_API_KEY || '';
+    this.fromEmail = env.BREVO_FROM_EMAIL || env.MAILERSEND_FROM_EMAIL;
+    this.fromName = env.BREVO_FROM_NAME || env.MAILERSEND_FROM_NAME;
+  }
+
+  isConfigured(): boolean {
+    return !!this.apiKey;
+  }
+
+  async send(options: EmailOptions): Promise<MailerSendResponse> {
+    const recipients = Array.isArray(options.to) ? options.to : [options.to];
+
+    const payload = {
+      sender: {
+        email: this.fromEmail,
+        name: this.fromName,
+      },
+      to: recipients.map(email => ({ email })),
+      subject: options.subject,
+      htmlContent: options.html,
+      textContent: options.text || this.stripHtml(options.html),
+      ...(options.replyTo && { replyTo: { email: options.replyTo } }),
+    };
+
+    try {
+      const response = await fetch(`${this.baseUrl}/smtp/email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'api-key': this.apiKey,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok || response.status === 201) {
+        const data = await response.json().catch(() => ({}));
+        const messageId = (data as any)?.messageId || 'sent';
+        logger.info('Email sent via Brevo', {
+          to: recipients.map(e => e.substring(0, 3) + '***').join(', '),
+          subject: options.subject.substring(0, 30),
+          messageId,
+        });
+        return { success: true, messageId };
+      }
+
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = (errorData as any)?.message || `HTTP ${response.status}`;
+
+      logger.error('Brevo API error', {
+        status: response.status,
+        error: errorMessage,
+        details: errorData,
+      });
+
+      return { success: false, error: errorMessage };
+    } catch (error: any) {
+      logger.error('Brevo request failed', { error: error.message });
+      return { success: false, error: error.message };
+    }
+  }
+
+  private stripHtml(html: string): string {
+    return html
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+}
+
+// ==========================================
 // SMTP Fallback (Nodemailer)
 // ==========================================
 
@@ -155,21 +236,31 @@ async function sendViaSMTP(options: EmailOptions): Promise<boolean> {
 // ==========================================
 
 const mailerSend = new MailerSendClient();
+const brevo = new BrevoClient();
 
 /**
- * Sends an email using MailerSend (primary) or SMTP (fallback)
+ * Sends an email using MailerSend (primary) → Brevo (secondary) → SMTP (last resort)
  */
 async function sendEmail(options: EmailOptions): Promise<boolean> {
-  // Try MailerSend first
+  // 1. Try MailerSend first
   if (mailerSend.isConfigured()) {
     const result = await mailerSend.send(options);
     if (result.success) {
       return true;
     }
-    logger.warn('MailerSend failed, trying SMTP fallback');
+    logger.warn('MailerSend failed, trying Brevo fallback');
   }
 
-  // Fallback to SMTP
+  // 2. Try Brevo as secondary
+  if (brevo.isConfigured()) {
+    const result = await brevo.send(options);
+    if (result.success) {
+      return true;
+    }
+    logger.warn('Brevo failed, trying SMTP fallback');
+  }
+
+  // 3. Last resort: SMTP
   return sendViaSMTP(options);
 }
 
