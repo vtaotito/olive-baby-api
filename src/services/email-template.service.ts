@@ -22,17 +22,28 @@ export interface RenderOptions {
 // ==========================================
 
 // Templates are in the frontend project, but we need to access them from the API
-// In production, templates should be copied to the API's public folder or served via CDN
-// For now, we'll use a relative path that works in development
-const TEMPLATES_DIR = path.join(process.cwd(), '..', 'olive-baby-web', 'public', 'email-templates');
+// In production, templates are served via the web server, so we fetch them via HTTP
+// In development, we can use a relative path
+const env = process.env.NODE_ENV || 'development';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://oliecare.cloud';
+const TEMPLATES_DIR = env === 'production' 
+  ? null // Will fetch via HTTP
+  : path.join(process.cwd(), '..', 'olive-baby-web', 'public', 'email-templates');
 
 /**
- * Get the full path to a template file
+ * Get the full path or URL to a template file
  */
-function getTemplatePath(templateName: string): string {
+function getTemplatePath(templateName: string): string | null {
   // Remove .html extension if present
   const cleanName = templateName.replace(/\.html$/, '');
-  return path.join(TEMPLATES_DIR, `${cleanName}.html`);
+  
+  if (TEMPLATES_DIR) {
+    // Development: use local file path
+    return path.join(TEMPLATES_DIR, `${cleanName}.html`);
+  } else {
+    // Production: return URL to fetch via HTTP
+    return `${FRONTEND_URL}/email-templates/${cleanName}.html`;
+  }
 }
 
 // ==========================================
@@ -104,17 +115,35 @@ export async function renderEmailTemplate(
   variables: TemplateVariables
 ): Promise<string> {
   try {
-    const templatePath = getTemplatePath(templateName);
+    const templatePathOrUrl = getTemplatePath(templateName);
     
-    // Check if template exists
-    try {
-      await fs.access(templatePath);
-    } catch {
-      throw new Error(`Template not found: ${templateName} (path: ${templatePath})`);
+    if (!templatePathOrUrl) {
+      throw new Error(`Template path not configured for: ${templateName}`);
     }
 
-    // Read template file
-    const templateContent = await fs.readFile(templatePath, 'utf-8');
+    let templateContent: string;
+
+    // Check if it's a URL (production) or file path (development)
+    if (templatePathOrUrl.startsWith('http://') || templatePathOrUrl.startsWith('https://')) {
+      // Production: fetch template via HTTP
+      try {
+        const response = await fetch(templatePathOrUrl);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        templateContent = await response.text();
+      } catch (fetchError: any) {
+        throw new Error(`Failed to fetch template from ${templatePathOrUrl}: ${fetchError.message}`);
+      }
+    } else {
+      // Development: read from file system
+      try {
+        await fs.access(templatePathOrUrl);
+      } catch {
+        throw new Error(`Template not found: ${templateName} (path: ${templatePathOrUrl})`);
+      }
+      templateContent = await fs.readFile(templatePathOrUrl, 'utf-8');
+    }
 
     // Render template with variables
     const rendered = renderTemplate(templateContent, variables);
