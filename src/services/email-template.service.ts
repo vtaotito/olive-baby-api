@@ -3,7 +3,7 @@ import path from 'path';
 import { logger } from '../config/logger';
 
 export interface TemplateVariables {
-  [key: string]: string | number | boolean | undefined | null | unknown[];
+  [key: string]: unknown;
 }
 
 export interface RenderOptions {
