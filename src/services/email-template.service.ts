@@ -12,7 +12,7 @@ export interface RenderOptions {
 }
 
 const isProduction = (process.env.NODE_ENV || 'development') === 'production';
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://oliecare.cloud';
+const INTERNAL_WEB_URL = process.env.INTERNAL_WEB_URL || 'http://olivebaby-web-server';
 const TEMPLATES_DIR = isProduction
   ? null
   : path.join(process.cwd(), '..', 'olive-baby-web', 'public', 'email-templates');
@@ -61,7 +61,7 @@ async function loadTemplateContent(templateName: string): Promise<string> {
     return fs.readFile(filePath, 'utf-8');
   }
 
-  const url = `${FRONTEND_URL}/email-templates/${cleanName}.html`;
+  const url = `${INTERNAL_WEB_URL}/email-templates/${cleanName}.html`;
   const resp = await fetch(url);
   if (!resp.ok) {
     throw new Error(`HTTP ${resp.status} fetching template from ${url}`);

@@ -14,22 +14,20 @@ export async function getUserStats(req: AuthenticatedRequest, res: Response) {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: {
-        caregiver: true,
-        babyMembers: {
-          where: { status: 'ACTIVE' },
-          include: {
-            baby: true,
-          },
-        },
-      },
+      include: { caregiver: true },
     });
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const babyIds = user.babyMembers.map(bm => bm.baby.id);
+    const babyMembers = await prisma.babyMember.findMany({
+      where: { userId, status: 'ACTIVE' },
+      select: { babyId: true, baby: { select: { id: true, name: true, birthDate: true } } },
+    });
+
+    const validMembers = babyMembers.filter(bm => bm.baby != null);
+    const babyIds = validMembers.map(bm => bm.babyId);
 
     const totalRoutines = babyIds.length > 0
       ? await prisma.routineLog.count({ where: { babyId: { in: babyIds } } })
@@ -51,11 +49,11 @@ export async function getUserStats(req: AuthenticatedRequest, res: Response) {
       userName: user.caregiver?.fullName || user.email,
       totalRoutines,
       daysActive,
-      babiesCount: user.babyMembers.length,
-      babies: user.babyMembers.map(bm => ({
-        id: bm.baby.id,
-        name: bm.baby.name,
-        birthDate: bm.baby.birthDate,
+      babiesCount: validMembers.length,
+      babies: validMembers.map(bm => ({
+        id: bm.baby!.id,
+        name: bm.baby!.name,
+        birthDate: bm.baby!.birthDate,
       })),
     });
   } catch (error: any) {
