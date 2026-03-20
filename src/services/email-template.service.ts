@@ -24,9 +24,11 @@ export interface RenderOptions {
 // Templates are in the frontend project, but we need to access them from the API
 // In production, templates are served via the web server, so we fetch them via HTTP
 // In development, we can use a relative path
-const env = process.env.NODE_ENV || 'development';
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://oliecare.cloud';
-const TEMPLATES_DIR = env === 'production' 
+import { env } from '../config/env';
+
+const isProduction = env.NODE_ENV === 'production';
+const FRONTEND_URL = env.FRONTEND_URL || 'https://oliecare.cloud';
+const TEMPLATES_DIR = isProduction 
   ? null // Will fetch via HTTP
   : path.join(process.cwd(), '..', 'olive-baby-web', 'public', 'email-templates');
 
