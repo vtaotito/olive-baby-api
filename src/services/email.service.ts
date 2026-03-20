@@ -912,6 +912,7 @@ export function getAllTemplatePreviews(): Array<{ type: string; name: string; ch
 /**
  * Send email by template type (n8n integration).
  * Supports predefined templates or custom body.
+ * Now supports new journey templates (09-30) via email-template.service
  */
 export async function sendEmailByTemplate(
   templateType: string,
@@ -945,18 +946,57 @@ export async function sendEmailByTemplate(
     }
     return;
   } else {
-    const preview = getTemplatePreview(templateType);
-    if (preview) {
-      html = preview.html;
+    // Check if this is a new journey template (09-30)
+    const isNewTemplate = /^(0[9]|[12][0-9]|30)-/.test(templateType) || 
+                          ['09-onboarding-day1', '10-first-baby-registered', '11-first-routine-recorded',
+                           '12-onboarding-day3', '13-onboarding-day7', '14-weekly-insights',
+                           '15-milestone-achievement', '16-feature-discovery', '17-educational-tip',
+                           '18-premium-teaser', '19-premium-feature-locked', '20-premium-trial-ending',
+                           '21-inactivity-reminder', '22-comeback-surprise', '23-annual-review',
+                           '24-professional-welcome', '25-first-patient-connected', '26-professional-tips',
+                           '27-patient-activity-summary', '28-professional-feature-update',
+                           '29-feedback-request', '30-announcement'].includes(templateType);
+
+    if (isNewTemplate) {
+      // Use new template service for journey templates
+      try {
+        const { renderEmailTemplate } = await import('./email-template.service');
+        const variables: Record<string, unknown> = {
+          userName: userName || 'Usuário',
+          unsubscribeUrl: `${env.FRONTEND_URL}/unsubscribe`,
+          ...options,
+        };
+        html = await renderEmailTemplate(templateType, variables);
+      } catch (error: any) {
+        logger.error('Failed to render new template, falling back to default', {
+          templateType,
+          error: error.message,
+        });
+        // Fallback to default template
+        const content = `
+          <div class="header"><div class="logo">🌿</div><h2>${subject}</h2></div>
+          <div class="content">
+            <p>Olá${userName ? ` <strong>${userName}</strong>` : ''},</p>
+            <p>Mensagem do OlieCare.</p>
+          </div>
+        `;
+        html = wrapTemplate(content, subject);
+      }
     } else {
-      const content = `
-        <div class="header"><div class="logo">🌿</div><h2>${subject}</h2></div>
-        <div class="content">
-          <p>Olá${userName ? ` <strong>${userName}</strong>` : ''},</p>
-          <p>Mensagem do OlieCare.</p>
-        </div>
-      `;
-      html = wrapTemplate(content, subject);
+      // Use existing template preview system
+      const preview = getTemplatePreview(templateType);
+      if (preview) {
+        html = preview.html;
+      } else {
+        const content = `
+          <div class="header"><div class="logo">🌿</div><h2>${subject}</h2></div>
+          <div class="content">
+            <p>Olá${userName ? ` <strong>${userName}</strong>` : ''},</p>
+            <p>Mensagem do OlieCare.</p>
+          </div>
+        `;
+        html = wrapTemplate(content, subject);
+      }
     }
   }
 
