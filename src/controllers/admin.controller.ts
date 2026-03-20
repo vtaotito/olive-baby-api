@@ -119,7 +119,16 @@ export const testEmailSchema = z.object({
   type: z.enum([
     'welcome', 'alert', 'password_reset', 'payment_confirmation',
     'subscription_cancelled', 'professional_invite', 'baby_invite', 'patient_invite',
+    '09-onboarding-day1', '10-first-baby-registered', '11-first-routine-recorded',
+    '12-onboarding-day3', '13-onboarding-day7', '14-weekly-insights',
+    '15-milestone-achievement', '16-feature-discovery', '17-educational-tip',
+    '18-premium-teaser', '19-premium-feature-locked', '20-premium-trial-ending',
+    '21-inactivity-reminder', '22-comeback-surprise', '23-annual-review',
+    '24-professional-welcome', '25-first-patient-connected', '26-professional-tips',
+    '27-patient-activity-summary', '28-professional-feature-update',
+    '29-feedback-request', '30-announcement',
   ]).default('welcome'),
+  variables: z.record(z.unknown()).optional(),
 });
 
 export const templatePreviewSchema = z.object({
@@ -1022,6 +1031,37 @@ export class AdminController {
             inviteToken: sampleToken, userExists: false,
           });
           break;
+        default: {
+          const isJourneyTemplate = /^(0[9]|[12][0-9]|30)-/.test(type);
+          if (isJourneyTemplate) {
+            const { sendEmailByTemplate } = await import('../services/email.service');
+            const defaultVars: Record<string, unknown> = {
+              userName: 'Usuário de Teste',
+              babyName: 'Bebê Teste',
+              babyId: '1',
+              routineType: 'Alimentação',
+              routineCount: '15',
+              insight: 'O padrão de sono do seu bebê está excelente!',
+              milestone: '50 rotinas registradas',
+              milestoneBadge: 'trophy',
+              featureName: 'Insights de IA',
+              featureDescription: 'Análise inteligente dos padrões do seu bebê.',
+              daysInactive: '7',
+              totalRoutines: '42',
+              totalDays: '30',
+              avgSleepHours: '12.5',
+              announcementTitle: 'Novidade no OlieCare!',
+              announcementBody: 'Estamos trazendo novas funcionalidades para você.',
+              unsubscribeUrl: `${process.env.FRONTEND_URL || 'https://oliecare.cloud'}/unsubscribe`,
+            };
+            await sendEmailByTemplate(type, email, {
+              subject: `[TESTE] ${type}`,
+              ...defaultVars,
+              ...(req.body.variables || {}),
+            });
+          }
+          break;
+        }
       }
 
       res.json({

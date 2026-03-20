@@ -1,33 +1,25 @@
-// OlieCare API - Email Data Controller
-// Provides dynamic data endpoints for email templates
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types';
 import { prisma } from '../config/database';
 import { logger } from '../config/logger';
 
-/**
- * GET /api/v1/users/:id/stats
- * Get user statistics for email templates
- */
 export async function getUserStats(req: AuthenticatedRequest, res: Response) {
   try {
     const userId = parseInt(req.params.id);
-    const authenticatedUserId = req.user?.userId;
+    const authUser = req.user;
 
-    // Verify user can access this data
-    if (authenticatedUserId !== userId) {
+    if (authUser?.role !== 'ADMIN' && authUser?.userId !== userId) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
-        babies: {
+        caregiver: true,
+        babyMembers: {
+          where: { status: 'ACTIVE' },
           include: {
-            routines: {
-              take: 1,
-              orderBy: { createdAt: 'desc' },
-            },
+            baby: true,
           },
         },
       },
@@ -37,42 +29,33 @@ export async function getUserStats(req: AuthenticatedRequest, res: Response) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Count total routines
-    const totalRoutines = await prisma.routine.count({
-      where: {
-        baby: {
-          userId: userId,
-        },
-      },
-    });
+    const babyIds = user.babyMembers.map(bm => bm.baby.id);
 
-    // Count days active (days since first routine)
-    const firstRoutine = await prisma.routine.findFirst({
-      where: {
-        baby: {
-          userId: userId,
-        },
-      },
-      orderBy: { createdAt: 'asc' },
-    });
+    const totalRoutines = babyIds.length > 0
+      ? await prisma.routineLog.count({ where: { babyId: { in: babyIds } } })
+      : 0;
+
+    const firstRoutine = babyIds.length > 0
+      ? await prisma.routineLog.findFirst({
+          where: { babyId: { in: babyIds } },
+          orderBy: { createdAt: 'asc' },
+        })
+      : null;
 
     const daysActive = firstRoutine
       ? Math.floor((Date.now() - firstRoutine.createdAt.getTime()) / (1000 * 60 * 60 * 24))
       : 0;
 
-    // Count babies
-    const babiesCount = user.babies.length;
-
     res.json({
       userId: user.id,
-      userName: user.name,
+      userName: user.caregiver?.fullName || user.email,
       totalRoutines,
       daysActive,
-      babiesCount,
-      babies: user.babies.map(baby => ({
-        id: baby.id,
-        name: baby.name,
-        birthDate: baby.birthDate,
+      babiesCount: user.babyMembers.length,
+      babies: user.babyMembers.map(bm => ({
+        id: bm.baby.id,
+        name: bm.baby.name,
+        birthDate: bm.baby.birthDate,
       })),
     });
   } catch (error: any) {
@@ -81,20 +64,19 @@ export async function getUserStats(req: AuthenticatedRequest, res: Response) {
   }
 }
 
-/**
- * GET /api/v1/babies/:id/insights
- * Get baby insights for email templates
- */
 export async function getBabyInsights(req: AuthenticatedRequest, res: Response) {
   try {
     const babyId = parseInt(req.params.id);
-    const authenticatedUserId = req.user?.userId;
+    const authUser = req.user;
 
     const baby = await prisma.baby.findUnique({
       where: { id: babyId },
       include: {
-        user: true,
-        routines: {
+        members: {
+          where: { status: 'ACTIVE' },
+          select: { userId: true },
+        },
+        routineLogs: {
           take: 100,
           orderBy: { createdAt: 'desc' },
         },
@@ -105,28 +87,23 @@ export async function getBabyInsights(req: AuthenticatedRequest, res: Response) 
       return res.status(404).json({ error: 'Baby not found' });
     }
 
-    // Verify user can access this baby
-    if (baby.userId !== authenticatedUserId) {
+    const memberUserIds = baby.members.map(m => m.userId);
+    if (authUser?.role !== 'ADMIN' && !memberUserIds.includes(authUser?.userId ?? -1)) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    // Calculate basic insights
-    const routines = baby.routines;
-    const feedingCount = routines.filter(r => r.type === 'FEEDING').length;
-    const sleepCount = routines.filter(r => r.type === 'SLEEP').length;
-    const diaperCount = routines.filter(r => r.type === 'DIAPER').length;
+    const routines = baby.routineLogs;
+    const feedingCount = routines.filter(r => r.routineType === 'FEEDING').length;
+    const sleepCount = routines.filter(r => r.routineType === 'SLEEP').length;
+    const diaperCount = routines.filter(r => r.routineType === 'DIAPER').length;
 
-    // Simple insight generation
     const insights: string[] = [];
-    
     if (routines.length > 0) {
       insights.push(`Você registrou ${routines.length} rotinas para ${baby.name}.`);
     }
-    
     if (feedingCount > 0) {
       insights.push(`Total de ${feedingCount} mamadas registradas.`);
     }
-    
     if (sleepCount > 0) {
       insights.push(`Total de ${sleepCount} períodos de sono registrados.`);
     }
@@ -146,35 +123,31 @@ export async function getBabyInsights(req: AuthenticatedRequest, res: Response) 
   }
 }
 
-/**
- * GET /api/v1/users/:id/milestones
- * Get user milestones for email templates
- */
 export async function getUserMilestones(req: AuthenticatedRequest, res: Response) {
   try {
     const userId = parseInt(req.params.id);
-    const authenticatedUserId = req.user?.userId;
+    const authUser = req.user;
 
-    if (authenticatedUserId !== userId) {
+    if (authUser?.role !== 'ADMIN' && authUser?.userId !== userId) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    const totalRoutines = await prisma.routine.count({
-      where: {
-        baby: {
-          userId: userId,
-        },
-      },
+    const babyMembers = await prisma.babyMember.findMany({
+      where: { userId, status: 'ACTIVE' },
+      select: { babyId: true },
     });
+    const babyIds = babyMembers.map(bm => bm.babyId);
 
-    const firstRoutine = await prisma.routine.findFirst({
-      where: {
-        baby: {
-          userId: userId,
-        },
-      },
-      orderBy: { createdAt: 'asc' },
-    });
+    const totalRoutines = babyIds.length > 0
+      ? await prisma.routineLog.count({ where: { babyId: { in: babyIds } } })
+      : 0;
+
+    const firstRoutine = babyIds.length > 0
+      ? await prisma.routineLog.findFirst({
+          where: { babyId: { in: babyIds } },
+          orderBy: { createdAt: 'asc' },
+        })
+      : null;
 
     const daysActive = firstRoutine
       ? Math.floor((Date.now() - firstRoutine.createdAt.getTime()) / (1000 * 60 * 60 * 24))
@@ -182,59 +155,31 @@ export async function getUserMilestones(req: AuthenticatedRequest, res: Response
 
     const milestones: Array<{ name: string; achieved: boolean; badge: string }> = [];
 
-    // Define milestones
-    if (totalRoutines >= 10) {
-      milestones.push({ name: '10 rotinas registradas', achieved: true, badge: '🎯' });
-    }
-    if (totalRoutines >= 50) {
-      milestones.push({ name: '50 rotinas registradas', achieved: true, badge: '🌟' });
-    }
-    if (totalRoutines >= 100) {
-      milestones.push({ name: '100 rotinas registradas', achieved: true, badge: '🏆' });
-    }
-    if (daysActive >= 7) {
-      milestones.push({ name: '7 dias de uso', achieved: true, badge: '📅' });
-    }
-    if (daysActive >= 30) {
-      milestones.push({ name: '30 dias de uso', achieved: true, badge: '📆' });
-    }
-    if (daysActive >= 365) {
-      milestones.push({ name: '1 ano de uso', achieved: true, badge: '🎂' });
-    }
+    if (totalRoutines >= 10)  milestones.push({ name: '10 rotinas registradas', achieved: true, badge: '🎯' });
+    if (totalRoutines >= 50)  milestones.push({ name: '50 rotinas registradas', achieved: true, badge: '🌟' });
+    if (totalRoutines >= 100) milestones.push({ name: '100 rotinas registradas', achieved: true, badge: '🏆' });
+    if (daysActive >= 7)   milestones.push({ name: '7 dias de uso', achieved: true, badge: '📅' });
+    if (daysActive >= 30)  milestones.push({ name: '30 dias de uso', achieved: true, badge: '📆' });
+    if (daysActive >= 365) milestones.push({ name: '1 ano de uso', achieved: true, badge: '🎂' });
 
-    // Get next milestone
     let nextMilestone: string | null = null;
-    if (totalRoutines < 10) {
-      nextMilestone = '10 rotinas registradas';
-    } else if (totalRoutines < 50) {
-      nextMilestone = '50 rotinas registradas';
-    } else if (totalRoutines < 100) {
-      nextMilestone = '100 rotinas registradas';
-    }
+    if (totalRoutines < 10)       nextMilestone = '10 rotinas registradas';
+    else if (totalRoutines < 50)  nextMilestone = '50 rotinas registradas';
+    else if (totalRoutines < 100) nextMilestone = '100 rotinas registradas';
 
-    res.json({
-      userId,
-      totalRoutines,
-      daysActive,
-      milestones,
-      nextMilestone,
-    });
+    res.json({ userId, totalRoutines, daysActive, milestones, nextMilestone });
   } catch (error: any) {
     logger.error('Failed to get user milestones', { error: error.message });
     res.status(500).json({ error: 'Internal server error' });
   }
 }
 
-/**
- * GET /api/v1/users/:id/weekly-summary
- * Get weekly summary for email templates
- */
 export async function getWeeklySummary(req: AuthenticatedRequest, res: Response) {
   try {
     const userId = parseInt(req.params.id);
-    const authenticatedUserId = req.user?.userId;
+    const authUser = req.user;
 
-    if (authenticatedUserId !== userId) {
+    if (authUser?.role !== 'ADMIN' && authUser?.userId !== userId) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
@@ -242,56 +187,39 @@ export async function getWeeklySummary(req: AuthenticatedRequest, res: Response)
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
-    // Get routines from last week
-    const routinesThisWeek = await prisma.routine.findMany({
-      where: {
-        baby: {
-          userId: userId,
-        },
-        createdAt: {
-          gte: weekAgo,
-        },
-      },
+    const babyMembers = await prisma.babyMember.findMany({
+      where: { userId, status: 'ACTIVE' },
+      select: { babyId: true },
     });
+    const babyIds = babyMembers.map(bm => bm.babyId);
 
-    // Get routines from previous week for comparison
-    const routinesLastWeek = await prisma.routine.findMany({
-      where: {
-        baby: {
-          userId: userId,
-        },
-        createdAt: {
-          gte: twoWeeksAgo,
-          lt: weekAgo,
-        },
-      },
-    });
+    const routinesThisWeek = babyIds.length > 0
+      ? await prisma.routineLog.findMany({
+          where: { babyId: { in: babyIds }, createdAt: { gte: weekAgo } },
+        })
+      : [];
 
-    const feedingCount = routinesThisWeek.filter(r => r.type === 'FEEDING').length;
-    const sleepCount = routinesThisWeek.filter(r => r.type === 'SLEEP').length;
-    const diaperCount = routinesThisWeek.filter(r => r.type === 'DIAPER').length;
+    const routinesLastWeek = babyIds.length > 0
+      ? await prisma.routineLog.findMany({
+          where: { babyId: { in: babyIds }, createdAt: { gte: twoWeeksAgo, lt: weekAgo } },
+        })
+      : [];
 
-    // Calculate average sleep hours (simplified)
-    const sleepRoutines = routinesThisWeek.filter(r => r.type === 'SLEEP');
-    const totalSleepMinutes = sleepRoutines.reduce((sum, r) => {
-      const duration = r.durationMinutes || 0;
-      return sum + duration;
-    }, 0);
-    const sleepHours = Math.round((totalSleepMinutes / 60) * 10) / 10;
+    const feedingCount = routinesThisWeek.filter(r => r.routineType === 'FEEDING').length;
+    const sleepCount = routinesThisWeek.filter(r => r.routineType === 'SLEEP').length;
+    const diaperCount = routinesThisWeek.filter(r => r.routineType === 'DIAPER').length;
 
-    // Comparison with last week
+    const sleepRoutines = routinesThisWeek.filter(r => r.routineType === 'SLEEP');
+    const totalSleepSeconds = sleepRoutines.reduce((sum, r) => sum + (r.durationSeconds || 0), 0);
+    const sleepHours = Math.round((totalSleepSeconds / 3600) * 10) / 10;
+
     const routineChange = routinesThisWeek.length - routinesLastWeek.length;
-    const sleepChange = sleepCount - routinesLastWeek.filter(r => r.type === 'SLEEP').length;
-    const feedingChange = feedingCount - routinesLastWeek.filter(r => r.type === 'FEEDING').length;
+    const sleepChange = sleepCount - routinesLastWeek.filter(r => r.routineType === 'SLEEP').length;
+    const feedingChange = feedingCount - routinesLastWeek.filter(r => r.routineType === 'FEEDING').length;
 
-    // Generate highlight
     let highlight = `Você registrou ${routinesThisWeek.length} rotinas esta semana!`;
-    if (feedingCount > 0) {
-      highlight += ` Total de ${feedingCount} mamadas.`;
-    }
-    if (sleepHours > 0) {
-      highlight += ` ${sleepHours} horas de sono registradas.`;
-    }
+    if (feedingCount > 0) highlight += ` Total de ${feedingCount} mamadas.`;
+    if (sleepHours > 0)   highlight += ` ${sleepHours} horas de sono registradas.`;
 
     res.json({
       userId,
