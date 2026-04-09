@@ -1428,9 +1428,10 @@ export class AdminController {
     next: NextFunction
   ): Promise<void> {
     try {
-      const { triggerId, segment, payload } = req.body;
-      if (!triggerId || !segment || !payload) {
-        res.status(400).json({ success: false, message: 'triggerId, segment, and payload are required' });
+      const { triggerId, segment, payload, defaultPayload } = req.body;
+      const finalPayload = payload || defaultPayload;
+      if (!triggerId || !segment || !finalPayload) {
+        res.status(400).json({ success: false, message: 'triggerId, segment, and payload (or defaultPayload) are required' });
         return;
       }
 
@@ -1442,7 +1443,7 @@ export class AdminController {
 
       const result = await PushNotificationService.sendToSegment(
         segment,
-        payload
+        finalPayload
       );
       res.json({ success: true, data: result });
     } catch (error) {
@@ -1476,6 +1477,71 @@ export class AdminController {
       res.json({ success: true, message: 'Email sent' });
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  /**
+   * POST /admin/n8n/send-whatsapp
+   * Send WhatsApp message via Evolution API (called by n8n or admin)
+   */
+  static async n8nSendWhatsApp(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { phone, message, instanceName } = req.body;
+      if (!phone || !message) {
+        res.status(400).json({ success: false, message: 'phone and message are required' });
+        return;
+      }
+
+      const evolutionUrl = process.env.EVOLUTION_API_URL;
+      const evolutionKey = process.env.EVOLUTION_API_KEY;
+      const instance = instanceName || process.env.EVOLUTION_INSTANCE || 'oliecare';
+
+      if (!evolutionUrl || !evolutionKey) {
+        res.status(503).json({ success: false, message: 'Evolution API not configured' });
+        return;
+      }
+
+      const response = await fetch(`${evolutionUrl}/message/sendText/${instance}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: evolutionKey },
+        body: JSON.stringify({ number: phone, text: message, delay: 1500 }),
+      });
+
+      if (!response.ok) {
+        const errBody = await response.text();
+        res.status(response.status).json({ success: false, message: `Evolution API error: ${errBody}` });
+        return;
+      }
+
+      const data = await response.json();
+      res.json({ success: true, data });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  /**
+   * GET /admin/n8n/enrollment-stats/:journeyId
+   */
+  static async n8nEnrollmentStats(
+    req: AuthenticatedRequest,
+    res: Response<ApiResponse>,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const journeyId = parseInt(req.params.journeyId);
+      if (isNaN(journeyId)) {
+        res.status(400).json({ success: false, message: 'Invalid journeyId' });
+        return;
+      }
+      const stats = await JourneyService.getEnrollmentStats(journeyId);
+      res.json({ success: true, data: stats });
+    } catch (error) {
+      next(error);
     }
   }
 

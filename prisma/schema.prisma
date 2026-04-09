@@ -234,6 +234,7 @@ model User {
   auditEvents          AuditEvent[]
   notifications        Notification[]
   deviceTokens         DeviceToken[]
+  journeyEnrollments   JourneyEnrollment[]
 
   @@index([planId])
   @@index([status])
@@ -895,6 +896,7 @@ model Journey {
   activatedAt DateTime?     @map("activated_at")
 
   steps       JourneyStep[]
+  enrollments JourneyEnrollment[]
 
   @@index([category])
   @@index([status])
@@ -927,7 +929,8 @@ model JourneyStep {
 
   createdAt DateTime @default(now()) @map("created_at")
 
-  journey   Journey  @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  journey    Journey              @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  executions JourneyStepExecution[]
 
   @@index([journeyId])
   @@index([journeyId, stepOrder])
@@ -941,6 +944,58 @@ model TriggerConfig {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("trigger_configs")
+}
+
+// ==========================================
+// JOURNEY ENROLLMENT & EXECUTION TRACKING
+// ==========================================
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  PAUSED
+  EXITED
+}
+
+model JourneyEnrollment {
+  id          Int              @id @default(autoincrement())
+  journeyId   Int              @map("journey_id")
+  userId      Int              @map("user_id")
+  currentStep Int              @default(0) @map("current_step")
+  status      EnrollmentStatus @default(ACTIVE)
+  enrolledAt  DateTime         @default(now()) @map("enrolled_at")
+  completedAt DateTime?        @map("completed_at")
+  lastStepAt  DateTime?        @map("last_step_at")
+  nextStepAt  DateTime?        @map("next_step_at")
+  metadata    Json?            @default("{}") @db.JsonB
+
+  journey     Journey          @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  executions  JourneyStepExecution[]
+
+  @@unique([journeyId, userId])
+  @@index([journeyId, status])
+  @@index([userId])
+  @@index([status, nextStepAt])
+  @@map("journey_enrollments")
+}
+
+model JourneyStepExecution {
+  id           Int      @id @default(autoincrement())
+  enrollmentId Int      @map("enrollment_id")
+  stepId       Int      @map("step_id")
+  executedAt   DateTime @default(now()) @map("executed_at")
+  channel      String   @db.VarChar(20)
+  status       String   @db.VarChar(20) @default("sent")
+  errorMessage String?  @map("error_message")
+
+  enrollment   JourneyEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  step         JourneyStep       @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+  @@index([enrollmentId])
+  @@index([stepId])
+  @@index([enrollmentId, stepId])
+  @@map("journey_step_executions")
 }
 
 // ==========================================

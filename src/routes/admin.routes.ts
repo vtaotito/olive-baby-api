@@ -267,6 +267,12 @@ router.post('/n8n/trigger-push', AdminController.n8nTriggerPush);
 // POST /admin/n8n/send-email - Send email via n8n
 router.post('/n8n/send-email', AdminController.n8nSendEmail);
 
+// POST /admin/n8n/send-whatsapp - Send WhatsApp message via Evolution API
+router.post('/n8n/send-whatsapp', AdminController.n8nSendWhatsApp);
+
+// GET /admin/n8n/enrollment-stats/:journeyId - Enrollment stats for a journey
+router.get('/n8n/enrollment-stats/:journeyId', AdminController.n8nEnrollmentStats);
+
 // ==========================================
 // Journeys (Communication Journeys)
 // ==========================================

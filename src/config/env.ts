@@ -80,6 +80,11 @@ const envSchema = z.object({
   FIREBASE_PROJECT_ID: z.string().optional(),
   FIREBASE_CLIENT_EMAIL: z.string().optional(),
   FIREBASE_PRIVATE_KEY: z.string().optional().transform(val => val ? val.replace(/\\n/g, '\n') : undefined),
+
+  // WhatsApp - Evolution API
+  EVOLUTION_API_URL: z.string().optional(),
+  EVOLUTION_API_KEY: z.string().optional(),
+  EVOLUTION_INSTANCE: z.string().default('oliecare'),
 });
 
 const parsed = envSchema.safeParse(process.env);
