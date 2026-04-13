@@ -24,9 +24,13 @@ jobs:
           script: |
             set -e
 
+            echo "==> Cleaning up orphaned containers..."
+            docker stop olivebaby-api 2>/dev/null || true
+            docker rm olivebaby-api 2>/dev/null || true
+
             echo "==> Restarting olivebaby-api..."
             cd /docker/olivebaby-api
-            docker compose down --timeout 30
+            docker compose down --timeout 30 --remove-orphans || true
             docker compose up -d
 
             echo "==> Waiting for API to become healthy (git pull + install + migrate + start)..."
