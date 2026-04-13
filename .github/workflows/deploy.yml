@@ -78,21 +78,48 @@ jobs:
             echo "==> Pulling latest image..."
             docker pull "$IMAGE_NAME:latest"
 
+            echo "==> Capturing env from current container..."
+            ENV_BACKUP="/tmp/olivebaby-api-env.txt"
+            if docker inspect "$CONTAINER_NAME" > /dev/null 2>&1; then
+              docker inspect "$CONTAINER_NAME" \
+                --format='{{range .Config.Env}}{{println .}}{{end}}' \
+                | grep -v '^PATH=' | grep -v '^HOME=' | grep -v '^HOSTNAME=' \
+                > "$ENV_BACKUP" 2>/dev/null || true
+              echo "  Captured $(wc -l < "$ENV_BACKUP") env vars from running container"
+            fi
+
             echo "==> Stopping current container..."
             docker stop "$CONTAINER_NAME" 2>/dev/null || true
             docker rm "$CONTAINER_NAME" 2>/dev/null || true
 
             echo "==> Starting new container..."
-            docker run -d \
-              --name "$CONTAINER_NAME" \
-              --network "$DOCKER_NETWORK" \
-              --restart unless-stopped \
-              -p 4000:4000 \
-              --env-file /docker/olivebaby-api/.env \
-              "$IMAGE_NAME:latest"
+            if [ -s "$ENV_BACKUP" ]; then
+              docker run -d \
+                --name "$CONTAINER_NAME" \
+                --network "$DOCKER_NETWORK" \
+                --restart unless-stopped \
+                -p 4000:4000 \
+                --env-file "$ENV_BACKUP" \
+                "$IMAGE_NAME:latest"
+            else
+              echo "WARNING: No env captured. Trying common env file locations..."
+              for envpath in /docker/olivebaby-api/.env /docker/olive-baby-api/.env /root/olive-baby-api/.env; do
+                if [ -f "$envpath" ]; then
+                  echo "  Found env file at $envpath"
+                  docker run -d \
+                    --name "$CONTAINER_NAME" \
+                    --network "$DOCKER_NETWORK" \
+                    --restart unless-stopped \
+                    -p 4000:4000 \
+                    --env-file "$envpath" \
+                    "$IMAGE_NAME:latest"
+                  break
+                fi
+              done
+            fi
 
             echo "==> Cleaning old images..."
-            docker image prune -f
+            docker image prune -f || true
 
             echo "==> Waiting for API to start..."
             sleep 10
