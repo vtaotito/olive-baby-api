@@ -24,36 +24,34 @@ jobs:
           script: |
             set -e
 
-            echo "==> Restarting olivebaby-api compose project..."
+            echo "==> Restarting olivebaby-api..."
             cd /docker/olivebaby-api
-
             docker compose down --timeout 30
             docker compose up -d
 
-            echo "==> Waiting for API to start (git pull + npm install + prisma migrate)..."
-            # The API container clones, installs, migrates, then starts - this takes a while
+            echo "==> Waiting for API to become healthy (git pull + install + migrate + start)..."
             for i in $(seq 1 60); do
-              HEALTH=$(docker compose ps api --format '{{.Health}}' 2>/dev/null || echo "starting")
-              STATUS=$(docker compose ps api --format '{{.State}}' 2>/dev/null || echo "unknown")
+              HEALTH=$(docker inspect olivebaby-api --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' 2>/dev/null || echo "waiting")
+              STATE=$(docker inspect olivebaby-api --format='{{.State.Status}}' 2>/dev/null || echo "absent")
 
               if [ "$HEALTH" = "healthy" ]; then
                 echo "  API is healthy!"
                 break
               fi
 
-              if [ "$STATUS" = "exited" ]; then
+              if [ "$STATE" = "exited" ]; then
                 echo "  API container exited unexpectedly!"
-                docker compose logs api --tail 40
+                docker compose logs --tail 40
                 exit 1
               fi
 
-              echo "  [$i/60] Status: $STATUS, Health: $HEALTH - waiting..."
+              echo "  [$i/60] State: $STATE, Health: $HEALTH"
               sleep 5
             done
 
             if [ "$HEALTH" != "healthy" ]; then
-              echo "  Timeout waiting for API to become healthy"
-              docker compose logs api --tail 40
+              echo "Timeout waiting for healthy state!"
+              docker compose logs --tail 40
               exit 1
             fi
 
@@ -61,7 +59,6 @@ jobs:
 
       - name: Production health check
         run: |
-          sleep 10
-          curl -sf --retry 5 --retry-delay 10 --retry-all-errors \
+          curl -sf --retry 5 --retry-delay 15 --retry-all-errors \
             https://oliecare.cloud/api/v1/health -o /dev/null
           echo "Production health check passed!"
