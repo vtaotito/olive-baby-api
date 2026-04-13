@@ -9,124 +9,53 @@ concurrency:
   group: deploy-api
   cancel-in-progress: false
 
-env:
-  IMAGE_NAME: ghcr.io/${{ github.repository }}
-  CONTAINER_NAME: olivebaby-api
-  DOCKER_NETWORK: olivebaby-network
-
 jobs:
-  build-and-push:
-    name: Build & Push Image
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.IMAGE_NAME }}
-          tags: |
-            type=sha,prefix=
-            type=raw,value=latest
-
-      - name: Build & Push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
   deploy:
     name: Deploy to VPS
     runs-on: ubuntu-latest
-    needs: build-and-push
-    permissions:
-      packages: read
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
-        env:
-          GHCR_TOKEN: ${{ github.token }}
-          GHCR_USER: ${{ github.actor }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
-          envs: IMAGE_NAME,CONTAINER_NAME,DOCKER_NETWORK,GHCR_TOKEN,GHCR_USER
+          command_timeout: 10m
           script: |
             set -e
 
-            echo "==> Logging into GHCR..."
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            echo "==> Restarting olivebaby-api compose project..."
+            cd /docker/olivebaby-api
 
-            echo "==> Pulling latest image..."
-            docker pull "$IMAGE_NAME:latest"
+            docker compose down --timeout 30
+            docker compose up -d
 
-            echo "==> Capturing env from current container..."
-            ENV_BACKUP="/tmp/olivebaby-api-env.txt"
-            if docker inspect "$CONTAINER_NAME" > /dev/null 2>&1; then
-              docker inspect "$CONTAINER_NAME" \
-                --format='{{range .Config.Env}}{{println .}}{{end}}' \
-                | grep -v '^PATH=' | grep -v '^HOME=' | grep -v '^HOSTNAME=' \
-                > "$ENV_BACKUP" 2>/dev/null || true
-              echo "  Captured $(wc -l < "$ENV_BACKUP") env vars from running container"
+            echo "==> Waiting for API to start (git pull + npm install + prisma migrate)..."
+            # The API container clones, installs, migrates, then starts - this takes a while
+            for i in $(seq 1 60); do
+              HEALTH=$(docker compose ps api --format '{{.Health}}' 2>/dev/null || echo "starting")
+              STATUS=$(docker compose ps api --format '{{.State}}' 2>/dev/null || echo "unknown")
+
+              if [ "$HEALTH" = "healthy" ]; then
+                echo "  API is healthy!"
+                break
+              fi
+
+              if [ "$STATUS" = "exited" ]; then
+                echo "  API container exited unexpectedly!"
+                docker compose logs api --tail 40
+                exit 1
+              fi
+
+              echo "  [$i/60] Status: $STATUS, Health: $HEALTH - waiting..."
+              sleep 5
+            done
+
+            if [ "$HEALTH" != "healthy" ]; then
+              echo "  Timeout waiting for API to become healthy"
+              docker compose logs api --tail 40
+              exit 1
             fi
-
-            echo "==> Stopping current container..."
-            docker stop "$CONTAINER_NAME" 2>/dev/null || true
-            docker rm "$CONTAINER_NAME" 2>/dev/null || true
-
-            echo "==> Starting new container..."
-            if [ -s "$ENV_BACKUP" ]; then
-              docker run -d \
-                --name "$CONTAINER_NAME" \
-                --network "$DOCKER_NETWORK" \
-                --restart unless-stopped \
-                -p 4000:4000 \
-                --env-file "$ENV_BACKUP" \
-                "$IMAGE_NAME:latest"
-            else
-              echo "WARNING: No env captured. Trying common env file locations..."
-              for envpath in /docker/olivebaby-api/.env /docker/olive-baby-api/.env /root/olive-baby-api/.env; do
-                if [ -f "$envpath" ]; then
-                  echo "  Found env file at $envpath"
-                  docker run -d \
-                    --name "$CONTAINER_NAME" \
-                    --network "$DOCKER_NETWORK" \
-                    --restart unless-stopped \
-                    -p 4000:4000 \
-                    --env-file "$envpath" \
-                    "$IMAGE_NAME:latest"
-                  break
-                fi
-              done
-            fi
-
-            echo "==> Cleaning old images..."
-            docker image prune -f || true
-
-            echo "==> Waiting for API to start..."
-            sleep 10
-
-            echo "==> Verifying container health..."
-            docker exec "$CONTAINER_NAME" wget -q --spider http://localhost:4000/health || \
-              (echo "Container health check failed!" && docker logs "$CONTAINER_NAME" --tail 30 && exit 1)
 
             echo "==> Deploy successful!"
 
