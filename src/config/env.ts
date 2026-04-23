@@ -55,7 +55,11 @@ const envSchema = z.object({
   ALERT_WEBHOOK_URL: z.string().url().optional(),
   MEMORY_LIMIT_MB: z.string().optional(),
 
-  // OpenAI / AI Assistant
+  // Anthropic / Claude (primary AI provider for blog content)
+  ANTHROPIC_API_KEY: z.string().optional(),
+  ANTHROPIC_MODEL: z.string().default('claude-sonnet-4-20250514'),
+
+  // OpenAI / AI Assistant (fallback)
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().default('gpt-4o'),
   OPENAI_EMBEDDING_MODEL: z.string().default('text-embedding-3-small'),
@@ -85,6 +89,15 @@ const envSchema = z.object({
   EVOLUTION_API_URL: z.string().optional(),
   EVOLUTION_API_KEY: z.string().optional(),
   EVOLUTION_INSTANCE: z.string().default('oliecare'),
+
+  // Admin setup (first admin account creation)
+  ADMIN_SETUP_KEY: z.string().optional(),
+
+  // Internal web URL (for fetching email templates from the web container in Docker)
+  INTERNAL_WEB_URL: z.string().default('http://olivebaby-web-server'),
+
+  // Monitoring (Bearer token for /monitoring/health and /monitoring/metrics)
+  MONITORING_TOKEN: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

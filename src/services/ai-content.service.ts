@@ -30,11 +30,48 @@ interface SEOOptimization {
   schemaMarkup: Record<string, unknown>;
 }
 
-async function callOpenAI(systemPrompt: string, userPrompt: string, temperature = 0.7): Promise<string> {
-  if (!env.OPENAI_API_KEY) {
-    throw new Error('OPENAI_API_KEY não configurada');
+type AIProvider = 'anthropic' | 'openai';
+
+function getProvider(): AIProvider {
+  if (env.ANTHROPIC_API_KEY) return 'anthropic';
+  if (env.OPENAI_API_KEY) return 'openai';
+  throw new Error('Nenhuma API key de IA configurada (ANTHROPIC_API_KEY ou OPENAI_API_KEY)');
+}
+
+async function callAnthropic(systemPrompt: string, userPrompt: string, temperature = 0.7): Promise<string> {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': env.ANTHROPIC_API_KEY!,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
+      max_tokens: 8192,
+      temperature,
+      system: systemPrompt + '\n\nIMPORTANTE: Responda APENAS com JSON válido, sem texto adicional antes ou depois.',
+      messages: [
+        { role: 'user', content: userPrompt },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    logger.error('Anthropic API error', { status: response.status, error: err });
+    throw new Error(`Anthropic API error: ${response.status}`);
   }
 
+  const data = await response.json() as {
+    content: Array<{ type: string; text: string }>;
+  };
+  const text = data.content?.[0]?.text || '{}';
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  return jsonMatch ? jsonMatch[0] : '{}';
+}
+
+async function callOpenAI(systemPrompt: string, userPrompt: string, temperature = 0.7): Promise<string> {
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -60,6 +97,16 @@ async function callOpenAI(systemPrompt: string, userPrompt: string, temperature 
 
   const data = await response.json() as { choices: Array<{ message: { content: string } }> };
   return data.choices[0]?.message?.content || '{}';
+}
+
+async function callLLM(systemPrompt: string, userPrompt: string, temperature = 0.7): Promise<string> {
+  const provider = getProvider();
+  logger.info(`AI content: using ${provider} provider`);
+
+  if (provider === 'anthropic') {
+    return callAnthropic(systemPrompt, userPrompt, temperature);
+  }
+  return callOpenAI(systemPrompt, userPrompt, temperature);
 }
 
 export class AIContentService {
@@ -109,7 +156,7 @@ ${existingContext ? `Posts já existentes (NÃO repetir):\n- ${existingContext}\
 Categorias disponíveis: Sono do Bebê, Amamentação, Alimentação, Desenvolvimento, Saúde, Rotina, Dicas para Pais, Gravidez`;
 
     try {
-      const raw = await callOpenAI(systemPrompt, userPrompt, 0.8);
+      const raw = await callLLM(systemPrompt, userPrompt, 0.8);
       const parsed = JSON.parse(raw);
       return (parsed.topics || []) as TopicSuggestion[];
     } catch (error) {
@@ -165,7 +212,7 @@ Estruture com:
 5. Conclusão com call-to-action`;
 
     try {
-      const raw = await callOpenAI(systemPrompt, userPrompt, 0.7);
+      const raw = await callLLM(systemPrompt, userPrompt, 0.7);
       return JSON.parse(raw) as GeneratedContent;
     } catch (error) {
       logger.error('Failed to generate content', { error });
@@ -219,7 +266,7 @@ Conteúdo (primeiros 3000 chars):
 ${post.content.substring(0, 3000)}`;
 
     try {
-      const raw = await callOpenAI(systemPrompt, userPrompt, 0.3);
+      const raw = await callLLM(systemPrompt, userPrompt, 0.3);
       const parsed = JSON.parse(raw) as SEOOptimization;
       parsed.readingTimeMin = readingTimeMin;
       return parsed;
