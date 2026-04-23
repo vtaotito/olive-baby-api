@@ -31,6 +31,8 @@ import { babyMedicalCertificateRouter } from './medical-certificate.routes';
 import { babyClinicalInfoRouter } from './baby-clinical-info.routes';
 import patientInviteRoutes from './patient-invite.routes';
 import emailDataRoutes from './email-data.routes';
+import blogRoutes from './blog.routes';
+import adminBlogRoutes from './admin-blog.routes';
 
 const router = Router();
 
@@ -66,6 +68,8 @@ router.use('/clinics', clinicRoutes);
 router.use('/appointments', appointmentRoutes);
 router.use('/patient-invites', patientInviteRoutes);
 router.use('/email-data', emailDataRoutes);
+router.use('/blog', blogRoutes);
+router.use('/admin/blog', adminBlogRoutes);
 
 // IMPORTANTE: Rotas públicas de convite DEVEM vir ANTES de rotas com authMiddleware global
 // Isso garante que /invites/verify-token seja acessível sem autenticação

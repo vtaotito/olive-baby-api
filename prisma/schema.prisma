@@ -235,6 +235,7 @@ model User {
   notifications        Notification[]
   deviceTokens         DeviceToken[]
   journeyEnrollments   JourneyEnrollment[]
+  blogPosts            BlogPost[]
 
   @@index([planId])
   @@index([status])
@@ -1474,4 +1475,83 @@ model PatientInvite {
   @@index([email])
   @@index([token])
   @@map("patient_invites")
+}
+
+// ==========================================
+// BLOG MODELS
+// ==========================================
+
+enum BlogPostStatus {
+  IDEA
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  PUBLISHED
+  ARCHIVED
+}
+
+model BlogCategory {
+  id          Int        @id @default(autoincrement())
+  name        String     @unique
+  slug        String     @unique
+  description String?
+  posts       BlogPost[]
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  @@map("blog_categories")
+}
+
+model BlogTag {
+  id    Int           @id @default(autoincrement())
+  name  String        @unique
+  slug  String        @unique
+  posts BlogPostTag[]
+
+  @@map("blog_tags")
+}
+
+model BlogPost {
+  id              Int              @id @default(autoincrement())
+  title           String
+  slug            String           @unique
+  excerpt         String?
+  content         String           @db.Text
+  coverImageUrl   String?          @map("cover_image_url")
+  status          BlogPostStatus   @default(DRAFT)
+  seoTitle        String?          @map("seo_title")
+  seoDescription  String?          @map("seo_description")
+  seoKeywords     String[]         @default([]) @map("seo_keywords")
+  ogImageUrl      String?          @map("og_image_url")
+  schemaMarkup    Json?            @map("schema_markup") @db.JsonB
+  readingTimeMin  Int?             @map("reading_time_min")
+  aiGenerated     Boolean          @default(false) @map("ai_generated")
+  aiPromptUsed    String?          @map("ai_prompt_used") @db.Text
+  publishedAt     DateTime?        @map("published_at")
+  reviewedBy      Int?             @map("reviewed_by")
+  reviewedAt      DateTime?        @map("reviewed_at")
+  reviewNotes     String?          @map("review_notes")
+  categoryId      Int?             @map("category_id")
+  category        BlogCategory?    @relation(fields: [categoryId], references: [id])
+  tags            BlogPostTag[]
+  authorId        Int?             @map("author_id")
+  author          User?            @relation(fields: [authorId], references: [id])
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([slug])
+  @@index([publishedAt])
+  @@index([categoryId])
+  @@map("blog_posts")
+}
+
+model BlogPostTag {
+  postId Int      @map("post_id")
+  tagId  Int      @map("tag_id")
+  post   BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag    BlogTag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tagId])
+  @@map("blog_post_tags")
 }

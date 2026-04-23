@@ -1,6 +1,7 @@
 // Olive Baby API - Admin Routes
 import { Router } from 'express';
 import { AdminController } from '../controllers/admin.controller';
+import { BlogController } from '../controllers/blog.controller';
 import { authMiddleware, requireAdmin } from '../middlewares/auth.middleware';
 import { validateBody, validateQuery } from '../middlewares/validation.middleware';
 import {
@@ -272,6 +273,12 @@ router.post('/n8n/send-whatsapp', AdminController.n8nSendWhatsApp);
 
 // GET /admin/n8n/enrollment-stats/:journeyId - Enrollment stats for a journey
 router.get('/n8n/enrollment-stats/:journeyId', AdminController.n8nEnrollmentStats);
+
+// POST /admin/n8n/blog-submit-draft - Submit blog draft from n8n agent
+router.post('/n8n/blog-submit-draft', BlogController.n8nSubmitDraft);
+
+// GET /admin/n8n/blog-pending-topics - List pending blog topics for n8n
+router.get('/n8n/blog-pending-topics', BlogController.n8nPendingTopics);
 
 // ==========================================
 // Journeys (Communication Journeys)
