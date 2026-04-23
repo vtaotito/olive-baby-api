@@ -52,12 +52,25 @@ export class AIImageService {
     logger.info('Generating blog cover image via Pollinations', { title: options.title, width, height });
 
     try {
-      const response = await fetch(pollinationsUrl, {
-        signal: AbortSignal.timeout(60000),
-      });
+      let response: Response | null = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) {
+          const delay = attempt * 20000;
+          logger.info(`Pollinations rate limited, retrying in ${delay / 1000}s (attempt ${attempt + 1}/3)`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
 
-      if (!response.ok) {
+        response = await fetch(pollinationsUrl, {
+          signal: AbortSignal.timeout(90000),
+        });
+
+        if (response.ok) break;
+        if (response.status === 429) continue;
         throw new Error(`Pollinations API error: ${response.status} ${response.statusText}`);
+      }
+
+      if (!response || !response.ok) {
+        throw new Error('Pollinations API: max retries exceeded (rate limited)');
       }
 
       const buffer = Buffer.from(await response.arrayBuffer());
