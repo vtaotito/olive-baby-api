@@ -13,6 +13,7 @@ import {
   generateTopicsSchema,
   generateContentSchema,
   optimizeSeoSchema,
+  generateImageSchema,
 } from '../controllers/blog.controller';
 
 const router = Router();
@@ -62,6 +63,7 @@ router.delete('/tags/:id', BlogController.adminDeleteTag);
 router.post('/ai/generate-topics', validateBody(generateTopicsSchema), BlogController.generateTopics);
 router.post('/ai/generate-content', validateBody(generateContentSchema), BlogController.generateContent);
 router.post('/ai/optimize-seo', validateBody(optimizeSeoSchema), BlogController.optimizeSeo);
+router.post('/ai/generate-image', validateBody(generateImageSchema), BlogController.generateImage);
 
 // ==========================================
 // Stats

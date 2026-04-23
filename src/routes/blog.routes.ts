@@ -20,4 +20,7 @@ router.get('/tags', BlogController.listPublicTags);
 // GET /blog/sitemap - Sitemap XML
 router.get('/sitemap', BlogController.getSitemap);
 
+// GET /blog/images/:filename - Serve generated blog images
+router.get('/images/:filename', BlogController.serveBlogImage);
+
 export default router;

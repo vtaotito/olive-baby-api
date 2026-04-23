@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { BlogService } from '../services/blog.service';
 import { AIContentService } from '../services/ai-content.service';
+import { AIImageService } from '../services/ai-image.service';
 import { AuthenticatedRequest, ApiResponse } from '../types';
 import { env } from '../config/env';
 
@@ -89,6 +90,15 @@ export const generateContentSchema = z.object({
 
 export const optimizeSeoSchema = z.object({
   postId: z.number().int().positive(),
+});
+
+export const generateImageSchema = z.object({
+  title: z.string().min(1).max(500),
+  excerpt: z.string().max(500).optional(),
+  customPrompt: z.string().max(1000).optional(),
+  width: z.number().int().min(256).max(1920).optional(),
+  height: z.number().int().min(256).max(1920).optional(),
+  postId: z.number().int().positive().optional(),
 });
 
 // ==========================================
@@ -380,6 +390,43 @@ ${entries.map(e => `  <url>
       });
 
       res.json({ success: true, data: { optimization, post: updated } });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // ==========================================
+  // AI Image Generation
+  // ==========================================
+
+  static async generateImage(req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction): Promise<void> {
+    try {
+      const { title, excerpt, customPrompt, width, height, postId } = req.body;
+      const result = await AIImageService.generateCoverImage({ title, excerpt, customPrompt, width, height });
+
+      if (postId) {
+        await BlogService.updatePost(postId, {
+          coverImageUrl: result.imageUrl,
+          ogImageUrl: result.imageUrl,
+        });
+      }
+
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async serveBlogImage(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const filepath = AIImageService.getImagePath(req.params.filename);
+      if (!filepath) {
+        res.status(404).json({ success: false, message: 'Imagem não encontrada' });
+        return;
+      }
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Content-Type', 'image/jpeg');
+      res.sendFile(filepath);
     } catch (error) {
       next(error);
     }
