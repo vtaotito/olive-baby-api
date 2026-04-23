@@ -14,15 +14,18 @@ function ensureImageDir() {
 }
 
 function buildPrompt(title: string, excerpt?: string): string {
-  const basePrompt = `Professional blog cover image for an article titled "${title}". ` +
-    `Clean, modern, warm and inviting design. Pastel colors with olive green accents. ` +
-    `Minimalist illustration style suitable for a baby care and parenting blog. ` +
-    `No text, no letters, no words in the image. High quality, 16:9 aspect ratio.`;
+  const topicHint = excerpt ? ` The scene should visually represent: ${excerpt.substring(0, 120)}.` : '';
 
-  if (excerpt) {
-    return `${basePrompt} Context: ${excerpt.substring(0, 100)}`;
-  }
-  return basePrompt;
+  return (
+    `A beautiful, photorealistic illustration about "${title}".${topicHint} ` +
+    `Warm pastel color palette with soft olive green and cream tones. ` +
+    `The image depicts a cozy, tender scene related to baby care, parenting, or early childhood. ` +
+    `Soft natural lighting, shallow depth of field, editorial photography style. ` +
+    `STRICTLY NO TEXT. STRICTLY NO LETTERS. STRICTLY NO WORDS. STRICTLY NO NUMBERS. ` +
+    `STRICTLY NO TYPOGRAPHY. STRICTLY NO WRITING OF ANY KIND ANYWHERE IN THE IMAGE. ` +
+    `STRICTLY NO WATERMARKS. STRICTLY NO LOGOS. STRICTLY NO CAPTIONS. ` +
+    `Pure visual illustration only. High quality, 16:9 cinematic composition.`
+  );
 }
 
 export class AIImageService {
@@ -43,7 +46,8 @@ export class AIImageService {
 
     const encodedPrompt = encodeURIComponent(prompt);
     const seed = crypto.randomInt(1, 999999);
-    const pollinationsUrl = `${POLLINATIONS_BASE}/${encodedPrompt}?width=${width}&height=${height}&model=flux&seed=${seed}&enhance=true&nologo=true`;
+    const negative = encodeURIComponent('text, letters, words, numbers, typography, writing, captions, watermark, logo, signature, label, title, subtitle, heading, font, alphabet, character');
+    const pollinationsUrl = `${POLLINATIONS_BASE}/${encodedPrompt}?width=${width}&height=${height}&model=flux&seed=${seed}&enhance=true&nologo=true&negative=${negative}`;
 
     logger.info('Generating blog cover image via Pollinations', { title: options.title, width, height });
 
