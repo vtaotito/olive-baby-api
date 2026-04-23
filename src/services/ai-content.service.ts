@@ -104,7 +104,15 @@ async function callLLM(systemPrompt: string, userPrompt: string, temperature = 0
   logger.info(`AI content: using ${provider} provider`);
 
   if (provider === 'anthropic') {
-    return callAnthropic(systemPrompt, userPrompt, temperature);
+    try {
+      return await callAnthropic(systemPrompt, userPrompt, temperature);
+    } catch (error) {
+      if (env.OPENAI_API_KEY) {
+        logger.warn('Anthropic failed, falling back to OpenAI', { error: (error as Error).message });
+        return callOpenAI(systemPrompt, userPrompt, temperature);
+      }
+      throw error;
+    }
   }
   return callOpenAI(systemPrompt, userPrompt, temperature);
 }
