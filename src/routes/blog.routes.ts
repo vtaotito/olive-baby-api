@@ -23,4 +23,16 @@ router.get('/sitemap', BlogController.getSitemap);
 // GET /blog/images/:filename - Serve generated blog images
 router.get('/images/:filename', BlogController.serveBlogImage);
 
+// ==========================================
+// SSR for crawlers (Googlebot, Bingbot, Facebook, etc.)
+// ==========================================
+// nginx faz proxy_pass destes endpoints quando detecta user-agent de bot.
+// Retornam HTML completo com canonical correto e Schema.org BlogPosting.
+
+// GET /blog/ssr - HTML renderizado da listagem do blog (para crawlers)
+router.get('/ssr', BlogController.ssrList);
+
+// GET /blog/ssr/:slug - HTML renderizado de um post (para crawlers)
+router.get('/ssr/:slug', BlogController.ssrPost);
+
 export default router;

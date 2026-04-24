@@ -1,10 +1,27 @@
 import { Request, Response, NextFunction } from 'express';
+import * as path from 'path';
 import { z } from 'zod';
 import { BlogService } from '../services/blog.service';
 import { AIContentService } from '../services/ai-content.service';
 import { AIImageService } from '../services/ai-image.service';
+import {
+  renderListHtml,
+  renderNotFoundHtml,
+  renderPostHtml,
+} from '../services/blog-ssr.service';
 import { AuthenticatedRequest, ApiResponse } from '../types';
 import { env } from '../config/env';
+import { logger } from '../config/logger';
+
+const IMAGE_MIME_TYPES: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+  '.avif': 'image/avif',
+};
 
 // ==========================================
 // Validation Schemas
@@ -436,15 +453,66 @@ ${entries.map(e => `  <url>
 
   static async serveBlogImage(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const filepath = AIImageService.getImagePath(req.params.filename);
+      const filename = req.params.filename;
+      const filepath = AIImageService.getImagePath(filename);
       if (!filepath) {
         res.status(404).json({ success: false, message: 'Imagem não encontrada' });
         return;
       }
+      const ext = path.extname(filename).toLowerCase();
+      const mime = IMAGE_MIME_TYPES[ext] || 'application/octet-stream';
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-      res.setHeader('Content-Type', 'image/jpeg');
+      res.setHeader('Content-Type', mime);
       res.sendFile(filepath);
     } catch (error) {
+      next(error);
+    }
+  }
+
+  // ==========================================
+  // Server-Side Rendering for Crawlers
+  // ==========================================
+  // Estes endpoints retornam HTML estático com conteúdo real, canonical correto,
+  // meta tags OG/Twitter específicas do post e JSON-LD Schema.org.
+  // O nginx deve fazer proxy_pass aqui quando detectar user-agents de crawlers
+  // (Googlebot, Bingbot, facebookexternalhit, WhatsApp, LinkedIn, Twitter, etc).
+
+  static async ssrPost(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const slug = String(req.params.slug || '');
+    try {
+      const html = await renderPostHtml({ slug });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=600');
+      res.setHeader('X-Robots-Tag', 'index, follow');
+      res.send(html);
+    } catch (error) {
+      const err = error as { statusCode?: number; message?: string };
+      if (err?.statusCode === 404) {
+        res.status(404).setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.send(renderNotFoundHtml(slug));
+        return;
+      }
+      logger.error('SSR post error', { slug, error });
+      next(error);
+    }
+  }
+
+  static async ssrList(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const pageRaw = String(req.query.page || '');
+      const pageNum = pageRaw ? parseInt(pageRaw, 10) : 1;
+      const html = await renderListHtml({
+        page: Number.isFinite(pageNum) && pageNum > 0 ? pageNum : 1,
+        category: req.query.category ? String(req.query.category) : undefined,
+        tag: req.query.tag ? String(req.query.tag) : undefined,
+        q: req.query.q ? String(req.query.q) : undefined,
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=600');
+      res.setHeader('X-Robots-Tag', 'index, follow');
+      res.send(html);
+    } catch (error) {
+      logger.error('SSR list error', { error });
       next(error);
     }
   }
