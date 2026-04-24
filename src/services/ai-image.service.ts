@@ -93,6 +93,28 @@ export class AIImageService {
   }
 
   /**
+   * Save an uploaded image file and return the public URL
+   */
+  static saveUploadedImage(file: { buffer: Buffer; originalname: string; mimetype: string }): { imageUrl: string; filename: string } {
+    ensureImageDir();
+
+    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+    const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+    const safeExt = allowed.includes(ext) ? ext : '.jpg';
+
+    const filename = `upload-${Date.now()}-${crypto.randomInt(1000, 9999)}${safeExt}`;
+    const filepath = path.join(IMAGE_DIR, filename);
+    fs.writeFileSync(filepath, file.buffer);
+
+    const frontendUrl = env.FRONTEND_URL || 'https://oliecare.cloud';
+    const imageUrl = `${frontendUrl}/api/v1/blog/images/${filename}`;
+
+    logger.info('Image uploaded', { filename, size: file.buffer.length });
+
+    return { imageUrl, filename };
+  }
+
+  /**
    * Get the local file path for a blog image
    */
   static getImagePath(filename: string): string | null {

@@ -1,7 +1,17 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { SocialController } from '../controllers/social.controller';
 import { authMiddleware, requireAdmin } from '../middlewares/auth.middleware';
 import { validateBody } from '../middlewares/validation.middleware';
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    cb(null, allowed.includes(file.mimetype));
+  },
+});
 import {
   createSocialPostSchema,
   updateSocialPostSchema,
@@ -41,6 +51,9 @@ router.post('/accounts/:id/test', SocialController.testAccount);
 router.post('/ai/generate-topics', validateBody(generateSocialTopicsSchema), SocialController.generateTopics);
 router.post('/ai/generate-caption', validateBody(generateCaptionSchema), SocialController.generateCaption);
 router.post('/ai/generate-image', validateBody(generateSocialImageSchema), SocialController.generateImage);
+
+// Upload
+router.post('/upload-image', upload.single('image'), SocialController.uploadImage);
 
 // Stats
 router.get('/stats', SocialController.getStats);

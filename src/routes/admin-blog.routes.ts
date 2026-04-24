@@ -1,7 +1,17 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { BlogController } from '../controllers/blog.controller';
 import { authMiddleware, requireAdmin } from '../middlewares/auth.middleware';
 import { validateBody, validateQuery } from '../middlewares/validation.middleware';
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    cb(null, allowed.includes(file.mimetype));
+  },
+});
 import {
   adminPostsQuerySchema,
   createPostSchema,
@@ -64,6 +74,9 @@ router.post('/ai/generate-topics', validateBody(generateTopicsSchema), BlogContr
 router.post('/ai/generate-content', validateBody(generateContentSchema), BlogController.generateContent);
 router.post('/ai/optimize-seo', validateBody(optimizeSeoSchema), BlogController.optimizeSeo);
 router.post('/ai/generate-image', validateBody(generateImageSchema), BlogController.generateImage);
+
+// Upload image from computer
+router.post('/upload-image', upload.single('image'), BlogController.uploadImage);
 
 // ==========================================
 // Stats

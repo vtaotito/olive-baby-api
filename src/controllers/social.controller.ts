@@ -218,6 +218,18 @@ export class SocialController {
     } catch (error) { next(error); }
   }
 
+  // Upload
+  static async uploadImage(req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction): Promise<void> {
+    try {
+      if (!req.file) {
+        res.status(400).json({ success: false, message: 'Nenhum arquivo enviado' });
+        return;
+      }
+      const result = AIImageService.saveUploadedImage(req.file);
+      res.json({ success: true, data: result });
+    } catch (error) { next(error); }
+  }
+
   // Stats
   static async getStats(req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction): Promise<void> {
     try {

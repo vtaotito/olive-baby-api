@@ -421,6 +421,19 @@ ${entries.map(e => `  <url>
     }
   }
 
+  static async uploadImage(req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction): Promise<void> {
+    try {
+      if (!req.file) {
+        res.status(400).json({ success: false, message: 'Nenhum arquivo enviado' });
+        return;
+      }
+      const result = AIImageService.saveUploadedImage(req.file);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async serveBlogImage(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const filepath = AIImageService.getImagePath(req.params.filename);
