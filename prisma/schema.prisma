@@ -236,6 +236,7 @@ model User {
   deviceTokens         DeviceToken[]
   journeyEnrollments   JourneyEnrollment[]
   blogPosts            BlogPost[]
+  socialPosts          SocialPost[]   @relation("SocialPostAuthor")
 
   @@index([planId])
   @@index([status])
@@ -1554,4 +1555,96 @@ model BlogPostTag {
 
   @@id([postId, tagId])
   @@map("blog_post_tags")
+}
+
+// ==========================================
+// SOCIAL MEDIA MODELS
+// ==========================================
+
+enum SocialPlatform {
+  INSTAGRAM
+  LINKEDIN
+  FACEBOOK
+  TWITTER
+  THREADS
+  TIKTOK
+  YOUTUBE
+  BLUESKY
+}
+
+enum SocialPostStatus {
+  IDEA
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+  ARCHIVED
+}
+
+model SocialAccount {
+  id              Int              @id @default(autoincrement())
+  platform        SocialPlatform
+  accountName     String           @map("account_name")
+  accountId       String           @map("account_id")
+  accessToken     String?          @map("access_token")
+  refreshToken    String?          @map("refresh_token")
+  externalData    Json?            @map("external_data") @db.JsonB
+  isActive        Boolean          @default(true) @map("is_active")
+  connectedAt     DateTime         @default(now()) @map("connected_at")
+  lastPublishedAt DateTime?        @map("last_published_at")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  posts           SocialPostPlatform[]
+
+  @@unique([platform, accountId])
+  @@index([platform])
+  @@index([isActive])
+  @@map("social_accounts")
+}
+
+model SocialPost {
+  id              Int                  @id @default(autoincrement())
+  caption         String               @db.Text
+  mediaUrls       String[]             @default([]) @map("media_urls")
+  status          SocialPostStatus     @default(DRAFT)
+  audience        String?
+  hashtags        String[]             @default([])
+  scheduledAt     DateTime?            @map("scheduled_at")
+  publishedAt     DateTime?            @map("published_at")
+  aiGenerated     Boolean              @default(false) @map("ai_generated")
+  aiPromptUsed    String?              @map("ai_prompt_used") @db.Text
+  reviewedBy      Int?                 @map("reviewed_by")
+  reviewedAt      DateTime?            @map("reviewed_at")
+  reviewNotes     String?              @map("review_notes")
+  authorId        Int?                 @map("author_id")
+  author          User?                @relation("SocialPostAuthor", fields: [authorId], references: [id])
+  platforms       SocialPostPlatform[]
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([audience])
+  @@index([scheduledAt])
+  @@index([publishedAt])
+  @@map("social_posts")
+}
+
+model SocialPostPlatform {
+  id              Int              @id @default(autoincrement())
+  postId          Int              @map("post_id")
+  accountId       Int              @map("account_id")
+  externalPostId  String?          @map("external_post_id")
+  status          String           @default("pending") @db.VarChar(20)
+  errorMessage    String?          @map("error_message")
+  publishedAt     DateTime?        @map("published_at")
+  post            SocialPost       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  account         SocialAccount    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, accountId])
+  @@index([postId])
+  @@index([accountId])
+  @@map("social_post_platforms")
 }

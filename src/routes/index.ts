@@ -33,6 +33,7 @@ import patientInviteRoutes from './patient-invite.routes';
 import emailDataRoutes from './email-data.routes';
 import blogRoutes from './blog.routes';
 import adminBlogRoutes from './admin-blog.routes';
+import adminSocialRoutes from './admin-social.routes';
 
 const router = Router();
 
@@ -70,6 +71,7 @@ router.use('/patient-invites', patientInviteRoutes);
 router.use('/email-data', emailDataRoutes);
 router.use('/blog', blogRoutes);
 router.use('/admin/blog', adminBlogRoutes);
+router.use('/admin/social', adminSocialRoutes);
 
 // IMPORTANTE: Rotas públicas de convite DEVEM vir ANTES de rotas com authMiddleware global
 // Isso garante que /invites/verify-token seja acessível sem autenticação

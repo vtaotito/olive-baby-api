@@ -98,6 +98,10 @@ const envSchema = z.object({
 
   // Monitoring (Bearer token for /monitoring/health and /monitoring/metrics)
   MONITORING_TOKEN: z.string().optional(),
+
+  // Social Media Publishing (Publora)
+  PUBLORA_API_KEY: z.string().optional(),
+  PUBLORA_API_URL: z.string().default('https://api.publora.com'),
 });
 
 const parsed = envSchema.safeParse(process.env);
