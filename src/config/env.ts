@@ -99,6 +99,9 @@ const envSchema = z.object({
   // Monitoring (Bearer token for /monitoring/health and /monitoring/metrics)
   MONITORING_TOKEN: z.string().optional(),
 
+  // n8n Integration (static Bearer token for /admin/n8n/* endpoints invoked by n8n cron workflows)
+  N8N_API_TOKEN: z.string().min(32).optional(),
+
   // Social Media Publishing (Publora)
   PUBLORA_API_KEY: z.string().optional(),
   PUBLORA_API_URL: z.string().default('https://api.publora.com'),

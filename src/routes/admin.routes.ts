@@ -4,6 +4,7 @@ import { AdminController } from '../controllers/admin.controller';
 import { BlogController } from '../controllers/blog.controller';
 import { SocialController } from '../controllers/social.controller';
 import { authMiddleware, requireAdmin } from '../middlewares/auth.middleware';
+import { n8nAuthMiddleware } from '../middlewares/n8n-auth.middleware';
 import { validateBody, validateQuery } from '../middlewares/validation.middleware';
 import {
   metricsQuerySchema,
@@ -37,7 +38,30 @@ import {
 
 const router = Router();
 
-// Todas as rotas admin requerem autenticação e role ADMIN
+// ==========================================
+// n8n Integration (mounted FIRST so it uses n8nAuthMiddleware instead of the
+// blanket admin JWT guard below. Accepts static N8N_API_TOKEN for cron calls
+// OR admin JWT for the admin panel hitting the same endpoints.)
+// ==========================================
+
+const n8nRouter = Router();
+n8nRouter.use(n8nAuthMiddleware);
+
+n8nRouter.post('/execute-journey', AdminController.n8nExecuteJourney);
+n8nRouter.post('/execute-step', AdminController.n8nExecuteStep);
+n8nRouter.get('/execution-summary', AdminController.n8nExecutionSummary);
+n8nRouter.get('/active-journeys', AdminController.n8nActiveJourneys);
+n8nRouter.post('/trigger-push', AdminController.n8nTriggerPush);
+n8nRouter.post('/send-email', AdminController.n8nSendEmail);
+n8nRouter.post('/send-whatsapp', AdminController.n8nSendWhatsApp);
+n8nRouter.get('/enrollment-stats/:journeyId', AdminController.n8nEnrollmentStats);
+n8nRouter.post('/blog-submit-draft', BlogController.n8nSubmitDraft);
+n8nRouter.get('/blog-pending-topics', BlogController.n8nPendingTopics);
+n8nRouter.post('/social-submit-draft', SocialController.n8nSubmitDraft);
+
+router.use('/n8n', n8nRouter);
+
+// Todas as demais rotas admin requerem JWT de usuário com role ADMIN
 router.use(authMiddleware);
 router.use(requireAdmin);
 
@@ -247,42 +271,7 @@ router.patch(
   AdminController.updatePushTrigger
 );
 
-// ==========================================
-// n8n Integration
-// ==========================================
-
-// POST /admin/n8n/execute-journey - Execute a journey via n8n
-router.post('/n8n/execute-journey', AdminController.n8nExecuteJourney);
-
-// POST /admin/n8n/execute-step - Execute a specific journey step via n8n
-router.post('/n8n/execute-step', AdminController.n8nExecuteStep);
-
-// GET /admin/n8n/execution-summary - Execution metrics for n8n dashboard
-router.get('/n8n/execution-summary', AdminController.n8nExecutionSummary);
-
-// GET /admin/n8n/active-journeys - Active journeys for n8n orchestration
-router.get('/n8n/active-journeys', AdminController.n8nActiveJourneys);
-
-// POST /admin/n8n/trigger-push - Execute a push trigger via n8n
-router.post('/n8n/trigger-push', AdminController.n8nTriggerPush);
-
-// POST /admin/n8n/send-email - Send email via n8n
-router.post('/n8n/send-email', AdminController.n8nSendEmail);
-
-// POST /admin/n8n/send-whatsapp - Send WhatsApp message via Evolution API
-router.post('/n8n/send-whatsapp', AdminController.n8nSendWhatsApp);
-
-// GET /admin/n8n/enrollment-stats/:journeyId - Enrollment stats for a journey
-router.get('/n8n/enrollment-stats/:journeyId', AdminController.n8nEnrollmentStats);
-
-// POST /admin/n8n/blog-submit-draft - Submit blog draft from n8n agent
-router.post('/n8n/blog-submit-draft', BlogController.n8nSubmitDraft);
-
-// GET /admin/n8n/blog-pending-topics - List pending blog topics for n8n
-router.get('/n8n/blog-pending-topics', BlogController.n8nPendingTopics);
-
-// POST /admin/n8n/social-submit-draft - Submit social draft from n8n agent
-router.post('/n8n/social-submit-draft', SocialController.n8nSubmitDraft);
+// n8n integration routes are registered above via n8nRouter (see top of file).
 
 // ==========================================
 // Journeys (Communication Journeys)
