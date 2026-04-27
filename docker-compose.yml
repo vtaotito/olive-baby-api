@@ -72,6 +72,7 @@ services:
       MAILERSEND_FROM_NAME: ${MAILERSEND_FROM_NAME:-OlieCare}
       ALERT_EMAIL: ${ALERT_EMAIL:-adm@api.oliecare.cloud}
       FRONTEND_URL: ${FRONTEND_URL:-https://oliecare.cloud}
+      N8N_API_TOKEN: ${N8N_API_TOKEN}
     ports:
       - "4000:4000"
     depends_on:
