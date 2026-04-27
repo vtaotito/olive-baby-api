@@ -16,11 +16,14 @@ jobs:
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
+        env:
+          N8N_API_TOKEN: ${{ secrets.N8N_API_TOKEN }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
           command_timeout: 10m
+          envs: N8N_API_TOKEN
           script: |
             set -e
 
@@ -28,8 +31,19 @@ jobs:
             docker stop olivebaby-api 2>/dev/null || true
             docker rm olivebaby-api 2>/dev/null || true
 
-            echo "==> Restarting olivebaby-api..."
+            echo "==> Syncing deploy secrets into .env..."
             cd /docker/olivebaby-api
+            touch .env
+            # Idempotent upsert of N8N_API_TOKEN in .env (used by /admin/n8n/*).
+            if [ -n "${N8N_API_TOKEN}" ]; then
+              if grep -q '^N8N_API_TOKEN=' .env; then
+                sed -i "s|^N8N_API_TOKEN=.*|N8N_API_TOKEN=${N8N_API_TOKEN}|" .env
+              else
+                echo "N8N_API_TOKEN=${N8N_API_TOKEN}" >> .env
+              fi
+            fi
+
+            echo "==> Restarting olivebaby-api..."
             docker compose down --timeout 30 --remove-orphans || true
             docker compose up -d
 
