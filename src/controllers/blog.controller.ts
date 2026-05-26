@@ -525,7 +525,10 @@ ${entries.map(e => `  <url>
     } catch (error) {
       const err = error as { statusCode?: number; message?: string };
       if (err?.statusCode === 404) {
-        res.status(404).setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.status(404)
+          .setHeader('Content-Type', 'text/html; charset=utf-8')
+          .setHeader('X-Robots-Tag', 'noindex, follow')
+          .setHeader('Cache-Control', 'public, max-age=60');
         res.send(renderNotFoundHtml(slug));
         return;
       }
@@ -535,9 +538,18 @@ ${entries.map(e => `  <url>
   }
 
   static async ssrList(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const pageRaw = String(req.query.page || '');
+    const pageNum = pageRaw ? parseInt(pageRaw, 10) : 1;
+    const listPath = [
+      '/blog',
+      req.query.category ? `category=${req.query.category}` : '',
+      req.query.tag ? `tag=${req.query.tag}` : '',
+      req.query.q ? `q=${req.query.q}` : '',
+    ]
+      .filter(Boolean)
+      .join('?');
+
     try {
-      const pageRaw = String(req.query.page || '');
-      const pageNum = pageRaw ? parseInt(pageRaw, 10) : 1;
       const html = await renderListHtml({
         page: Number.isFinite(pageNum) && pageNum > 0 ? pageNum : 1,
         category: req.query.category ? String(req.query.category) : undefined,
@@ -549,6 +561,15 @@ ${entries.map(e => `  <url>
       res.setHeader('X-Robots-Tag', 'index, follow');
       res.send(html);
     } catch (error) {
+      const err = error as { statusCode?: number };
+      if (err?.statusCode === 404) {
+        res.status(404)
+          .setHeader('Content-Type', 'text/html; charset=utf-8')
+          .setHeader('X-Robots-Tag', 'noindex, follow')
+          .setHeader('Cache-Control', 'public, max-age=60');
+        res.send(renderNotFoundHtml(listPath));
+        return;
+      }
       logger.error('SSR list error', { error });
       next(error);
     }

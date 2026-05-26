@@ -1,5 +1,6 @@
 import { env } from '../config/env';
 import { BlogService } from './blog.service';
+import { AppError } from '../utils/errors/AppError';
 
 /**
  * Serviço de Server-Side Rendering para o blog.
@@ -275,20 +276,6 @@ ${(post.tags || []).map(t => `<meta property="article:tag" content="${escapeAttr
 <script type="application/ld+json">${JSON.stringify(breadcrumbSchema)}</script>
 ${faqSchema ? `<script type="application/ld+json">${JSON.stringify(faqSchema)}</script>` : ''}
 
-<!--
-  Redireciona humanos que cheguem direto à versão SSR para o SPA real.
-  Bots não executam JS, então continuam vendo este HTML completo.
--->
-<script>
-  (function(){
-    try {
-      var isBot = /bot|crawler|spider|crawling|facebookexternalhit|whatsapp|telegram|linkedin|slackbot|twitterbot|discord|pinterest|applebot|duckduckbot|yandex|baidu|bingbot|googlebot|google-inspection-tool|lighthouse|headlesschrome/i.test(navigator.userAgent);
-      if (!isBot) {
-        window.location.replace(${JSON.stringify(`/blog/${post.slug}`)});
-      }
-    } catch (e) {}
-  })();
-</script>
 </head>
 <body>
 <header class="site">
@@ -365,13 +352,35 @@ export async function renderListHtml(opts: SsrListOptions = {}): Promise<string>
     q: opts.q,
   });
 
+  const hasActiveFilter = !!(opts.category || opts.tag || opts.q);
+  const totalPages = result.pagination.totalPages;
+
+  if (hasActiveFilter && result.data.length === 0) {
+    throw AppError.notFound('Nenhum artigo encontrado para este filtro');
+  }
+  if (totalPages > 0 && page > totalPages) {
+    throw AppError.notFound('Página de blog não encontrada');
+  }
+  if (page > 1 && result.pagination.total === 0) {
+    throw AppError.notFound('Página de blog não encontrada');
+  }
+
   const title = opts.category
     ? `Blog OlieCare - Categoria ${opts.category}`
     : opts.tag
       ? `Blog OlieCare - Tag ${opts.tag}`
       : `Blog | ${SITE_NAME} - Cuidados com Bebê`;
   const description = 'Artigos baseados em evidências sobre cuidados com bebês, amamentação, sono infantil, desenvolvimento e dicas para pais e profissionais de saúde.';
-  const canonical = `${siteUrl}/blog${page > 1 ? `?page=${page}` : ''}`;
+  const canonicalParams = new URLSearchParams();
+  if (opts.category) canonicalParams.set('category', opts.category);
+  if (opts.tag) canonicalParams.set('tag', opts.tag);
+  if (opts.q) canonicalParams.set('q', opts.q);
+  if (page > 1) canonicalParams.set('page', String(page));
+  const canonicalQs = canonicalParams.toString();
+  const canonical = `${siteUrl}/blog${canonicalQs ? `?${canonicalQs}` : ''}`;
+  const robotsMeta = hasActiveFilter && result.data.length === 0
+    ? 'noindex, follow'
+    : 'index, follow, max-snippet:-1, max-image-preview:large';
 
   const blogSchema = {
     '@context': 'https://schema.org',
@@ -446,7 +455,7 @@ export async function renderListHtml(opts: SsrListOptions = {}): Promise<string>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(title)}</title>
 <meta name="description" content="${escapeAttr(description)}">
-<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">
+<meta name="robots" content="${robotsMeta}">
 <meta name="language" content="pt-BR">
 <link rel="canonical" href="${escapeAttr(canonical)}">
 ${prevUrl ? `<link rel="prev" href="${escapeAttr(prevUrl)}">` : ''}
