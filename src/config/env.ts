@@ -62,6 +62,7 @@ const envSchema = z.object({
   // OpenAI / AI Assistant (fallback)
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().default('gpt-4o'),
+  OPENAI_IMAGE_MODEL: z.string().default('gpt-image-1'),
   OPENAI_EMBEDDING_MODEL: z.string().default('text-embedding-3-small'),
   AI_MAX_TOKENS: z.string().default('2048').transform(Number),
   AI_TEMPERATURE: z.string().default('0.7').transform(Number),

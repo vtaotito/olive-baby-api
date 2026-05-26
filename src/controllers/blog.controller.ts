@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { BlogService } from '../services/blog.service';
 import { AIContentService } from '../services/ai-content.service';
 import { AIImageService } from '../services/ai-image.service';
+import { OpenAIImageService } from '../services/openai-image.service';
 import {
   renderListHtml,
   renderNotFoundHtml,
@@ -153,10 +154,12 @@ export const optimizeSeoSchema = z.object({
 export const generateImageSchema = z.object({
   title: z.string().min(1).max(500),
   excerpt: z.string().max(500).optional(),
-  customPrompt: z.string().max(1000).optional(),
+  customPrompt: z.string().max(2000).optional(),
   width: z.number().int().min(256).max(1920).optional(),
   height: z.number().int().min(256).max(1920).optional(),
   postId: z.number().int().positive().optional(),
+  format: z.enum(['blog', 'instagram']).optional(),
+  templateId: z.enum(['essencial', 'jardim', 'impulso', 'afeto']).optional(),
 });
 
 // ==========================================
@@ -459,8 +462,17 @@ ${entries.map(e => `  <url>
 
   static async generateImage(req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction): Promise<void> {
     try {
-      const { title, excerpt, customPrompt, width, height, postId } = req.body;
-      const result = await AIImageService.generateCoverImage({ title, excerpt, customPrompt, width, height });
+      const { title, excerpt, customPrompt, width, height, postId, format, templateId } = req.body;
+
+      const result = OpenAIImageService.isConfigured()
+        ? await OpenAIImageService.generate({
+            topic: title,
+            excerpt,
+            customPrompt,
+            format: format ?? 'blog',
+            templateId: templateId ?? 'essencial',
+          })
+        : await AIImageService.generateCoverImage({ title, excerpt, customPrompt, width, height });
 
       if (postId) {
         await BlogService.updatePost(postId, {

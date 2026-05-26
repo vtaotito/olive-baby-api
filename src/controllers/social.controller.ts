@@ -4,6 +4,7 @@ import { SocialService } from '../services/social.service';
 import { AISocialContentService } from '../services/ai-social-content.service';
 import { SocialPublisherService } from '../services/social-publisher.service';
 import { AIImageService } from '../services/ai-image.service';
+import { OpenAIImageService } from '../services/openai-image.service';
 import { AuthenticatedRequest, ApiResponse } from '../types';
 
 // ==========================================
@@ -77,6 +78,9 @@ export const generateCaptionSchema = z.object({
 export const generateSocialImageSchema = z.object({
   caption: z.string().min(1).max(5000),
   postId: z.number().int().positive().optional(),
+  format: z.enum(['blog', 'instagram']).optional(),
+  templateId: z.enum(['essencial', 'jardim', 'impulso', 'afeto']).optional(),
+  customPrompt: z.string().max(2000).optional(),
 });
 
 // ==========================================
@@ -202,13 +206,22 @@ export class SocialController {
 
   static async generateImage(req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction): Promise<void> {
     try {
-      const { caption, postId } = req.body;
-      const result = await AIImageService.generateCoverImage({
-        title: caption.substring(0, 100),
-        excerpt: caption.substring(0, 200),
-        width: 1080,
-        height: 1080,
-      });
+      const { caption, postId, format, templateId, customPrompt } = req.body;
+
+      const result = OpenAIImageService.isConfigured()
+        ? await OpenAIImageService.generate({
+            topic: caption.substring(0, 200),
+            excerpt: caption.substring(0, 400),
+            customPrompt,
+            format: format ?? 'instagram',
+            templateId: templateId ?? 'essencial',
+          })
+        : await AIImageService.generateCoverImage({
+            title: caption.substring(0, 100),
+            excerpt: caption.substring(0, 200),
+            width: 1080,
+            height: 1080,
+          });
 
       if (postId) {
         await SocialService.updatePost(postId, { mediaUrls: [result.imageUrl] });
