@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { logger } from '../config/logger';
+import { env, isProduction } from '../config/env';
 
 export interface TemplateVariables {
   [key: string]: unknown;
@@ -11,8 +12,7 @@ export interface RenderOptions {
   templatePath?: string;
 }
 
-const isProduction = (process.env.NODE_ENV || 'development') === 'production';
-const INTERNAL_WEB_URL = process.env.INTERNAL_WEB_URL || 'http://olivebaby-web-server';
+const INTERNAL_WEB_URL = env.INTERNAL_WEB_URL;
 const TEMPLATES_DIR = isProduction
   ? null
   : path.join(process.cwd(), '..', 'olive-baby-web', 'public', 'email-templates');

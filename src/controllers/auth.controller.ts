@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { AuthService } from '../services/auth.service';
 import { ApiResponse } from '../types';
 import { AppError } from '../utils/errors/AppError';
+import { env } from '../config/env';
 
 // Schemas de validação
 export const registerSchema = z.object({
@@ -250,9 +251,8 @@ export class AuthController {
     try {
       const { email, setupKey } = req.body;
 
-      // Verificar chave de setup (use uma chave segura em produção via env)
-      const validSetupKey = process.env.ADMIN_SETUP_KEY || 'OlieCare-Setup-2026-SecureKey';
-      if (setupKey !== validSetupKey) {
+      const validSetupKey = env.ADMIN_SETUP_KEY;
+      if (!validSetupKey || setupKey !== validSetupKey) {
         throw AppError.forbidden('Chave de setup inválida');
       }
 

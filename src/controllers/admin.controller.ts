@@ -24,6 +24,7 @@ import { JourneyService } from '../services/journey.service';
 import { AlertService } from '../services/alert.service';
 import { AuthenticatedRequest, ApiResponse } from '../types';
 import { PlanType, UserStatus, JourneyStatus, AlertStatus, AlertSeverity } from '@prisma/client';
+import { env } from '../config/env';
 
 // ==========================================
 // Validation Schemas
@@ -1052,7 +1053,7 @@ export class AdminController {
               avgSleepHours: '12.5',
               announcementTitle: 'Novidade no OlieCare!',
               announcementBody: 'Estamos trazendo novas funcionalidades para você.',
-              unsubscribeUrl: `${process.env.FRONTEND_URL || 'https://oliecare.cloud'}/unsubscribe`,
+              unsubscribeUrl: `${env.FRONTEND_URL}/unsubscribe`,
             };
             await sendEmailByTemplate(type, email, {
               subject: `[TESTE] ${type}`,
@@ -1292,10 +1293,10 @@ export class AdminController {
         prisma.deviceToken.count({ where: { isActive: true } }),
       ]);
 
-      const hasMailerSend = !!process.env.MAILERSEND_API_KEY;
-      const hasSmtp = !!(process.env.SMTP_HOST && process.env.SMTP_USER);
-      const hasVapid = !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
-      const hasFcm = !!(process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY);
+      const hasMailerSend = !!env.MAILERSEND_API_KEY;
+      const hasSmtp = !!(env.SMTP_HOST && env.SMTP_USER);
+      const hasVapid = !!(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY);
+      const hasFcm = !!(env.FIREBASE_PROJECT_ID && env.FIREBASE_PRIVATE_KEY);
 
       const emailStatus = hasMailerSend ? 'operational' : hasSmtp ? 'degraded' : 'down';
       const pushStatus = hasVapid ? 'operational' : 'down';
@@ -1306,8 +1307,8 @@ export class AdminController {
           email: {
             status: emailStatus,
             provider: hasMailerSend ? 'MailerSend' : hasSmtp ? 'SMTP' : 'Nenhum',
-            fromEmail: process.env.MAILERSEND_FROM_EMAIL || 'noreply@oliecare.cloud',
-            alertEmail: process.env.ALERT_EMAIL || '—',
+            fromEmail: env.MAILERSEND_FROM_EMAIL,
+            alertEmail: env.ALERT_EMAIL || '—',
             sentToday: emailToday,
             sentLast7d: emailLast7d,
             hasMailerSend,
@@ -1496,9 +1497,9 @@ export class AdminController {
         return;
       }
 
-      const evolutionUrl = process.env.EVOLUTION_API_URL;
-      const evolutionKey = process.env.EVOLUTION_API_KEY;
-      const instance = instanceName || process.env.EVOLUTION_INSTANCE || 'oliecare';
+      const evolutionUrl = env.EVOLUTION_API_URL;
+      const evolutionKey = env.EVOLUTION_API_KEY;
+      const instance = instanceName || env.EVOLUTION_INSTANCE;
 
       if (!evolutionUrl || !evolutionKey) {
         res.status(503).json({ success: false, message: 'Evolution API not configured' });

@@ -3,6 +3,7 @@
 import { JourneyStatus, EnrollmentStatus, Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { logger } from '../config/logger';
+import { env } from '../config/env';
 
 export interface CreateJourneyInput {
   name: string;
@@ -475,9 +476,9 @@ export class JourneyService {
     const phone = await JourneyService.getUserPhone(user.id);
     if (!phone) return 'failed';
 
-    const evolutionUrl = process.env.EVOLUTION_API_URL;
-    const evolutionKey = process.env.EVOLUTION_API_KEY;
-    const instanceName = process.env.EVOLUTION_INSTANCE || 'oliecare';
+    const evolutionUrl = env.EVOLUTION_API_URL;
+    const evolutionKey = env.EVOLUTION_API_KEY;
+    const instanceName = env.EVOLUTION_INSTANCE;
 
     if (!evolutionUrl || !evolutionKey) {
       logger.warn('[Journey] WhatsApp step skipped: Evolution API not configured');

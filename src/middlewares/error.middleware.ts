@@ -4,6 +4,7 @@ import { AppError } from '../utils/errors/AppError';
 import { logger } from '../config/logger';
 import { monitoringService } from '../services/monitoring.service';
 import { ZodError } from 'zod';
+import { isDevelopment, isProduction } from '../config/env';
 
 /**
  * Middleware para rotas não encontradas
@@ -60,7 +61,7 @@ export function errorMiddleware(
       ...(error.code && { code: error.code }),
       ...(error.data && { data: error.data }),
       ...(error.errors && { errors: error.errors }),
-      ...(process.env.NODE_ENV === 'development' && { stack: error.stack }),
+      ...(isDevelopment && { stack: error.stack }),
     });
     return;
   }
@@ -107,9 +108,9 @@ export function errorMiddleware(
 
   res.status(500).json({
     success: false,
-    message: process.env.NODE_ENV === 'production' 
+    message: isProduction 
       ? 'Erro interno do servidor' 
       : error.message,
-    ...(process.env.NODE_ENV === 'development' && { stack: error.stack }),
+    ...(isDevelopment && { stack: error.stack }),
   });
 }
