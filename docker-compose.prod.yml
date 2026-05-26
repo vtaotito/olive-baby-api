@@ -25,9 +25,9 @@ services:
       API_PREFIX: /api/v1
       MEMORY_LIMIT_MB: "512"
       # Database - conecta ao PostgreSQL existente
-      DATABASE_URL: postgresql://olivebaby:OliveBaby@2024Secure!@olivebaby-db:5432/olivebaby?schema=public
+      DATABASE_URL: postgresql://${DB_USER:-olivebaby}:${DB_PASSWORD}@olivebaby-db:5432/${DB_NAME:-olivebaby}?schema=public
       # Redis - conecta ao Redis existente
-      REDIS_URL: redis://:OliveBabyRedis@2024!@olivebaby-redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD}@olivebaby-redis:6379
       # JWT Secrets
       JWT_ACCESS_SECRET: OliveBabyJWT2024AccessSecretKey32chars!
       JWT_REFRESH_SECRET: OliveBabyJWT2024RefreshSecretKey32ch!
