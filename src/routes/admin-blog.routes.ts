@@ -35,7 +35,7 @@ router.use(requireAdmin);
 // Posts CRUD
 // ==========================================
 
-router.get('/posts', BlogController.adminListPosts);
+router.get('/posts', validateQuery(adminPostsQuerySchema), BlogController.adminListPosts);
 router.post('/posts', validateBody(createPostSchema), BlogController.adminCreatePost);
 router.get('/posts/:id', BlogController.adminGetPost);
 router.put('/posts/:id', validateBody(updatePostSchema), BlogController.adminUpdatePost);

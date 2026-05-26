@@ -27,21 +27,58 @@ const IMAGE_MIME_TYPES: Record<string, string> = {
 // Validation Schemas
 // ==========================================
 
+const positiveIntFromString = (max: number, fallback: number) =>
+  z
+    .string()
+    .optional()
+    .transform((v) => {
+      if (v === undefined || v === '') return fallback;
+      const n = parseInt(v, 10);
+      return Number.isFinite(n) && n > 0 ? Math.min(n, max) : fallback;
+    });
+
 export const publicPostsQuerySchema = z.object({
-  page: z.string().optional().transform(v => v ? parseInt(v) : 1),
-  limit: z.string().optional().transform(v => v ? parseInt(v) : 12),
-  category: z.string().optional(),
-  tag: z.string().optional(),
-  q: z.string().optional(),
+  page: positiveIntFromString(10000, 1),
+  limit: positiveIntFromString(50, 12),
+  category: z.string().trim().max(120).optional(),
+  tag: z.string().trim().max(120).optional(),
+  q: z.string().trim().max(200).optional(),
 });
 
 export const adminPostsQuerySchema = z.object({
-  page: z.string().optional().transform(v => v ? parseInt(v) : 1),
-  limit: z.string().optional().transform(v => v ? parseInt(v) : 20),
+  page: positiveIntFromString(10000, 1),
+  limit: positiveIntFromString(100, 20),
   status: z.enum(['IDEA', 'DRAFT', 'IN_REVIEW', 'APPROVED', 'PUBLISHED', 'ARCHIVED']).optional(),
-  categoryId: z.string().optional().transform(v => v ? parseInt(v) : undefined),
-  q: z.string().optional(),
+  categoryId: z
+    .string()
+    .optional()
+    .transform((v) => {
+      if (v === undefined || v === '') return undefined;
+      const n = parseInt(v, 10);
+      return Number.isFinite(n) && n > 0 ? n : undefined;
+    }),
+  q: z.string().trim().max(200).optional(),
 });
+
+export type PublicPostsQuery = z.infer<typeof publicPostsQuerySchema>;
+export type AdminPostsQuery = z.infer<typeof adminPostsQuerySchema>;
+
+export const n8nSubmitDraftSchema = z.object({
+  title: z.string().min(1).max(500),
+  content: z.string().min(1),
+  excerpt: z.string().max(500).optional().default(''),
+  coverImageUrl: z.string().url().optional(),
+  categoryId: z.number().int().positive().optional(),
+  tagNames: z.array(z.string().min(1).max(80)).max(20).optional(),
+  seoTitle: z.string().max(120).optional(),
+  seoDescription: z.string().max(300).optional(),
+  seoKeywords: z.array(z.string().min(1).max(80)).max(30).optional(),
+  ogImageUrl: z.string().url().optional(),
+  schemaMarkup: z.record(z.unknown()).optional(),
+  aiPromptUsed: z.string().max(2000).optional(),
+});
+
+export type N8nSubmitDraftBody = z.infer<typeof n8nSubmitDraftSchema>;
 
 export const createPostSchema = z.object({
   title: z.string().min(1).max(500),
@@ -133,13 +170,13 @@ export class BlogController {
 
   static async listPublishedPosts(req: Request, res: Response<ApiResponse>, next: NextFunction): Promise<void> {
     try {
-      const { page, limit, category, tag, q } = req.query as any;
+      const { page, limit, category, tag, q } = req.query as unknown as PublicPostsQuery;
       const result = await BlogService.listPublishedPosts({
-        page: page ? parseInt(page) : undefined,
-        limit: limit ? parseInt(limit) : undefined,
-        categorySlug: category as string,
-        tagSlug: tag as string,
-        q: q as string,
+        page,
+        limit,
+        categorySlug: category,
+        tagSlug: tag,
+        q,
       });
       res.json({ success: true, data: result.data, pagination: result.pagination });
     } catch (error) {
@@ -207,12 +244,12 @@ ${entries.map(e => `  <url>
 
   static async adminListPosts(req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction): Promise<void> {
     try {
-      const { page, limit, status, categoryId, q } = req.query as any;
+      const { page, limit, status, categoryId, q } = req.query as unknown as AdminPostsQuery;
       const result = await BlogService.listAllPosts({
-        page: page ? parseInt(page) : undefined,
-        limit: limit ? parseInt(limit) : undefined,
+        page,
+        limit,
         status,
-        categoryId: categoryId ? parseInt(categoryId) : undefined,
+        categoryId,
         q,
       });
       res.json({ success: true, data: result.data, pagination: result.pagination });
@@ -523,13 +560,20 @@ ${entries.map(e => `  <url>
 
   static async n8nSubmitDraft(req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction): Promise<void> {
     try {
+      const body = req.body as N8nSubmitDraftBody;
       const post = await BlogService.createPost({
-        ...req.body,
+        ...body,
         aiGenerated: true,
         status: 'IN_REVIEW',
       });
+      logger.info('n8n submitted blog draft', {
+        postId: post.id,
+        slug: post.slug,
+        title: post.title,
+      });
       res.status(201).json({ success: true, data: post });
     } catch (error) {
+      logger.error('n8n submit draft failed', { error });
       next(error);
     }
   }

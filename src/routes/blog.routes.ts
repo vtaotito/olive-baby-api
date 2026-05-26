@@ -6,7 +6,7 @@ import { publicPostsQuerySchema } from '../controllers/blog.controller';
 const router = Router();
 
 // GET /blog/posts - List published posts (paginated, filterable)
-router.get('/posts', BlogController.listPublishedPosts);
+router.get('/posts', validateQuery(publicPostsQuerySchema), BlogController.listPublishedPosts);
 
 // GET /blog/posts/:slug - Get published post by slug
 router.get('/posts/:slug', BlogController.getPublishedPost);

@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import { AdminController } from '../controllers/admin.controller';
 import { BlogController } from '../controllers/blog.controller';
+import { n8nSubmitDraftSchema } from '../controllers/blog.controller';
 import { SocialController } from '../controllers/social.controller';
 import { authMiddleware, requireAdmin } from '../middlewares/auth.middleware';
 import { n8nAuthMiddleware } from '../middlewares/n8n-auth.middleware';
@@ -55,7 +56,11 @@ n8nRouter.post('/trigger-push', AdminController.n8nTriggerPush);
 n8nRouter.post('/send-email', AdminController.n8nSendEmail);
 n8nRouter.post('/send-whatsapp', AdminController.n8nSendWhatsApp);
 n8nRouter.get('/enrollment-stats/:journeyId', AdminController.n8nEnrollmentStats);
-n8nRouter.post('/blog-submit-draft', BlogController.n8nSubmitDraft);
+n8nRouter.post(
+  '/blog-submit-draft',
+  validateBody(n8nSubmitDraftSchema),
+  BlogController.n8nSubmitDraft
+);
 n8nRouter.get('/blog-pending-topics', BlogController.n8nPendingTopics);
 n8nRouter.post('/social-submit-draft', SocialController.n8nSubmitDraft);
 
