@@ -1,5 +1,6 @@
 import { env } from '../config/env';
 import { logger } from '../config/logger';
+import { assertValidImageBuffer } from '../utils/validators/image-magic-bytes';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
@@ -74,6 +75,7 @@ export class AIImageService {
       }
 
       const buffer = Buffer.from(await response.arrayBuffer());
+      assertValidImageBuffer(buffer);
 
       ensureImageDir();
       const filename = `blog-${Date.now()}-${seed}.jpg`;
@@ -98,11 +100,8 @@ export class AIImageService {
   static saveUploadedImage(file: { buffer: Buffer; originalname: string; mimetype: string }): { imageUrl: string; filename: string } {
     ensureImageDir();
 
-    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
-    const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-    const safeExt = allowed.includes(ext) ? ext : '.jpg';
-
-    const filename = `upload-${Date.now()}-${crypto.randomInt(1000, 9999)}${safeExt}`;
+    const { extension } = assertValidImageBuffer(file.buffer, file.mimetype);
+    const filename = `upload-${Date.now()}-${crypto.randomInt(1000, 9999)}${extension}`;
     const filepath = path.join(IMAGE_DIR, filename);
     fs.writeFileSync(filepath, file.buffer);
 
