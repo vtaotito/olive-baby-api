@@ -30,6 +30,7 @@ export interface GenerateAgentImageResult {
   prompt: string;
   filename: string;
   provider: ImageGenerationProvider;
+  fallbackFrom?: ImageGenerationProvider;
 }
 
 function ensureImageDir() {
@@ -67,6 +68,86 @@ interface GeminiGenerateResponse {
     };
   }>;
   error?: { message?: string };
+}
+
+function isGeminiRetryableError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('depleted') ||
+    lower.includes('quota') ||
+    lower.includes('rate limit') ||
+    lower.includes('429') ||
+    lower.includes('resource exhausted') ||
+    lower.includes('billing')
+  );
+}
+
+async function generateWithFallback(
+  options: GenerateAgentImageOptions,
+  primary: ImageGenerationProvider
+): Promise<GenerateAgentImageResult> {
+  const chain: ImageGenerationProvider[] = [primary];
+  if (primary === 'gemini') {
+    if (env.OPENAI_API_KEY) chain.push('openai');
+    chain.push('pollinations');
+  } else if (primary === 'openai') {
+    chain.push('pollinations');
+  }
+
+  let lastError: unknown;
+
+  for (let i = 0; i < chain.length; i++) {
+    const provider = chain[i];
+    try {
+      const result = await generateWithProvider(options, provider);
+      if (i > 0) {
+        logger.warn('Image generation used fallback provider', {
+          requested: primary,
+          used: provider,
+          reason: lastError instanceof Error ? lastError.message : String(lastError),
+        });
+        return { ...result, fallbackFrom: primary };
+      }
+      return result;
+    } catch (error) {
+      lastError = error;
+      const msg = error instanceof Error ? error.message : String(error);
+      const canRetry =
+        i < chain.length - 1 &&
+        (provider !== 'gemini' || isGeminiRetryableError(msg));
+
+      if (!canRetry) throw error;
+      logger.warn('Provider failed, trying next', { provider, msg: msg.slice(0, 200) });
+    }
+  }
+
+  throw lastError;
+}
+
+async function generateWithProvider(
+  options: GenerateAgentImageOptions,
+  provider: ImageGenerationProvider
+): Promise<GenerateAgentImageResult> {
+  if (provider === 'gemini') {
+    return GeminiImageService.generate(options);
+  }
+  if (provider === 'openai') {
+    const { OpenAIImageService } = await import('./openai-image.service');
+    const result = await OpenAIImageService.generate(options);
+    return { ...result, provider: 'openai' };
+  }
+  const { AIImageService } = await import('./ai-image.service');
+  const format = options.format ?? 'blog';
+  const formatConfig = IMAGE_AGENT_FORMATS[format];
+  const result = await AIImageService.generateCoverImage({
+    title: options.topic,
+    excerpt: options.excerpt,
+    customPrompt: options.customPrompt,
+    width: formatConfig.width,
+    height: formatConfig.height,
+  });
+  const filename = result.imageUrl.split('/').pop() || `pollinations-${Date.now()}.jpg`;
+  return { ...result, filename, provider: 'pollinations' };
 }
 
 export class GeminiImageService {
@@ -114,6 +195,9 @@ export class GeminiImageService {
     if (!response.ok) {
       const msg = json.error?.message || `HTTP ${response.status}`;
       logger.error('Gemini image API error', { status: response.status, msg: msg.slice(0, 500) });
+      if (isGeminiRetryableError(msg)) {
+        throw AppError.badRequest(`Gemini indisponível (créditos ou cota): ${msg}`);
+      }
       throw AppError.badRequest(`Falha ao gerar imagem (Gemini): ${msg}`);
     }
 
@@ -164,28 +248,6 @@ export class ImageAgentImageService {
 
   static async generate(options: GenerateAgentImageOptions): Promise<GenerateAgentImageResult> {
     const provider = ImageAgentImageService.resolveProvider(options.provider);
-
-    if (provider === 'gemini') {
-      return GeminiImageService.generate(options);
-    }
-
-    if (provider === 'openai') {
-      const { OpenAIImageService } = await import('./openai-image.service');
-      const result = await OpenAIImageService.generate(options);
-      return { ...result, provider: 'openai' };
-    }
-
-    const { AIImageService } = await import('./ai-image.service');
-    const format = options.format ?? 'blog';
-    const formatConfig = IMAGE_AGENT_FORMATS[format];
-    const result = await AIImageService.generateCoverImage({
-      title: options.topic,
-      excerpt: options.excerpt,
-      customPrompt: options.customPrompt,
-      width: formatConfig.width,
-      height: formatConfig.height,
-    });
-    const filename = result.imageUrl.split('/').pop() || `pollinations-${Date.now()}.jpg`;
-    return { ...result, filename, provider: 'pollinations' };
+    return generateWithFallback(options, provider);
   }
 }
