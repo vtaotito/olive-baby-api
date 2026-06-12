@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { BlogService } from '../services/blog.service';
 import { AIContentService } from '../services/ai-content.service';
 import { AIImageService } from '../services/ai-image.service';
-import { OpenAIImageService } from '../services/openai-image.service';
+import { ImageAgentImageService } from '../services/image-agent-image.service';
 import {
   renderListHtml,
   renderNotFoundHtml,
@@ -462,17 +462,15 @@ ${entries.map(e => `  <url>
 
   static async generateImage(req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction): Promise<void> {
     try {
-      const { title, excerpt, customPrompt, width, height, postId, format, templateId } = req.body;
+      const { title, excerpt, customPrompt, postId, format, templateId } = req.body;
 
-      const result = OpenAIImageService.isConfigured()
-        ? await OpenAIImageService.generate({
-            topic: title,
-            excerpt,
-            customPrompt,
-            format: format ?? 'blog',
-            templateId: templateId ?? 'essencial',
-          })
-        : await AIImageService.generateCoverImage({ title, excerpt, customPrompt, width, height });
+      const result = await ImageAgentImageService.generate({
+        topic: title,
+        excerpt,
+        customPrompt,
+        format: format ?? 'blog',
+        templateId: templateId ?? 'essencial',
+      });
 
       if (postId) {
         await BlogService.updatePost(postId, {

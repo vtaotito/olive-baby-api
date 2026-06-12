@@ -11,6 +11,7 @@ const router = Router();
 
 router.use(authMiddleware, requireAdmin);
 
+router.get('/config', ImageAgentController.getConfig);
 router.post('/generate-copy', validateBody(imageAgentGenerateCopySchema), ImageAgentController.generateCopy);
 router.post('/generate-image', validateBody(imageAgentGenerateImageSchema), ImageAgentController.generateImage);
 

@@ -64,6 +64,12 @@ const envSchema = z.object({
   OPENAI_MODEL: z.string().default('gpt-4o'),
   OPENAI_IMAGE_MODEL: z.string().default('gpt-image-1'),
   OPENAI_EMBEDDING_MODEL: z.string().default('text-embedding-3-small'),
+
+  // Google Gemini (image agent + optional copy)
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_IMAGE_MODEL: z.string().default('gemini-2.5-flash-image'),
+  /** Preferência do agente de imagens: auto | gemini | openai | pollinations */
+  IMAGE_AGENT_IMAGE_PROVIDER: z.enum(['auto', 'gemini', 'openai', 'pollinations']).default('auto'),
   AI_MAX_TOKENS: z.string().default('2048').transform(Number),
   AI_TEMPERATURE: z.string().default('0.7').transform(Number),
   AI_RAG_TOP_K: z.string().default('6').transform(Number),
