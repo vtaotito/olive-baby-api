@@ -1421,7 +1421,9 @@ export class AdminController {
 
   /**
    * POST /admin/n8n/trigger-push
-   * Called by n8n to execute a push trigger
+   * Called by n8n cron to execute a push trigger.
+   * Resolves the eligible audience per trigger (no blind broadcast).
+   * Accepts dryRun=true to only count eligible users without sending.
    */
   static async n8nTriggerPush(
     req: AuthenticatedRequest,
@@ -1429,23 +1431,50 @@ export class AdminController {
     next: NextFunction
   ): Promise<void> {
     try {
-      const { triggerId, segment, payload, defaultPayload } = req.body;
-      const finalPayload = payload || defaultPayload;
-      if (!triggerId || !segment || !finalPayload) {
-        res.status(400).json({ success: false, message: 'triggerId, segment, and payload (or defaultPayload) are required' });
+      const { triggerId, segment, payload, defaultPayload, dryRun } = req.body;
+      if (!triggerId) {
+        res.status(400).json({ success: false, message: 'triggerId is required' });
         return;
       }
 
+      const triggerDef = PUSH_TRIGGERS.find(t => t.id === triggerId);
       const triggerConfig = await prisma.triggerConfig.findUnique({ where: { triggerId } });
-      if (triggerConfig && !triggerConfig.enabled) {
-        res.json({ success: true, data: { sent: 0, message: 'Trigger is disabled' } });
+      const enabled = triggerConfig ? triggerConfig.enabled : triggerDef?.defaultEnabled ?? false;
+      if (!enabled) {
+        res.json({ success: true, data: { triggerId, sent: 0, skipped: true, reason: 'Trigger desabilitado' } });
         return;
       }
 
-      const result = await PushNotificationService.sendToSegment(
-        segment,
-        finalPayload
-      );
+      const finalPayload = payload || defaultPayload || triggerDef?.defaultPayload;
+      if (!finalPayload?.title) {
+        res.status(400).json({ success: false, message: 'payload (ou defaultPayload) com title é obrigatório' });
+        return;
+      }
+
+      // Trigger conhecido → audiência por elegibilidade
+      if (triggerDef) {
+        const configDefaults = Object.fromEntries(
+          triggerDef.configSchema.map(c => [c.key, c.default])
+        );
+        const mergedConfig = { ...configDefaults, ...((triggerConfig?.config as object) ?? {}) };
+
+        const { PushTriggerService } = await import('../services/push-trigger.service');
+        const result = await PushTriggerService.executeTrigger(
+          triggerId,
+          finalPayload,
+          mergedConfig as Record<string, number | boolean | string>,
+          dryRun === true
+        );
+        res.json({ success: true, data: result });
+        return;
+      }
+
+      // Trigger desconhecido com segment explícito → broadcast legado
+      if (!segment) {
+        res.status(400).json({ success: false, message: `Trigger desconhecido: ${triggerId}` });
+        return;
+      }
+      const result = await PushNotificationService.sendToSegment(segment, finalPayload);
       res.json({ success: true, data: result });
     } catch (error) {
       next(error);
