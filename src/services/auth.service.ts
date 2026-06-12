@@ -8,6 +8,14 @@ import { validatePassword } from '../utils/validators/password.validator';
 import { JwtPayload } from '../types';
 import { UserRole, Relationship } from '@prisma/client';
 import { logger } from '../config/logger';
+import { AuditService } from '../core/entitlements';
+
+/** Atualiza last_activity_at sem bloquear a resposta da requisição */
+function touchLastActivity(userId: number): void {
+  prisma.user
+    .update({ where: { id: userId }, data: { lastActivityAt: new Date() } })
+    .catch(err => logger.warn('Falha ao atualizar lastActivityAt', { userId, err }));
+}
 
 const SALT_ROUNDS = 10;
 
@@ -192,6 +200,12 @@ export class AuthService {
     // Salvar refresh token
     await JwtService.saveRefreshToken(user.id, tokens.refreshToken);
 
+    // Registrar atividade e evento de login (fire-and-forget)
+    touchLastActivity(user.id);
+    AuditService.logUserLogin(user.id).catch(err =>
+      logger.warn('Falha ao registrar USER_LOGIN', { userId: user.id, err })
+    );
+
     return {
       user: {
         id: user.id,
@@ -243,6 +257,9 @@ export class AuthService {
 
     // Salvar novo refresh token
     await JwtService.saveRefreshToken(user.id, tokens.refreshToken);
+
+    // Renovação de sessão indica usuário ativo
+    touchLastActivity(user.id);
 
     return tokens;
   }
