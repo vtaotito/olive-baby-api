@@ -402,10 +402,10 @@ export class PushNotificationService {
         whereClause.role = { in: ['PEDIATRICIAN', 'SPECIALIST'] };
         break;
       case 'premium':
-        whereClause.plan = { planType: 'PREMIUM' };
+        whereClause.plan = { type: 'PREMIUM' };
         break;
       case 'free':
-        whereClause.OR = [{ planId: null }, { plan: { planType: 'FREE' } }];
+        whereClause.OR = [{ planId: null }, { plan: { type: 'FREE' } }];
         break;
     }
 
