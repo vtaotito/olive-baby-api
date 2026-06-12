@@ -607,6 +607,7 @@ export class AdminService {
       baby_id: number;
       baby_name: string;
       baby_birth_date: Date;
+      baby_gender: string | null;
     }>>`
       SELECT 
         bm.id as bm_id,
@@ -614,7 +615,8 @@ export class AdminService {
         bm.status as bm_status,
         b.id as baby_id,
         b.name as baby_name,
-        b.birth_date as baby_birth_date
+        b.birth_date as baby_birth_date,
+        b.gender as baby_gender
       FROM baby_members bm
       INNER JOIN babies b ON bm.baby_id = b.id
       WHERE bm.user_id = ${userId}
@@ -629,6 +631,7 @@ export class AdminService {
           baby_id: number;
           baby_name: string;
           baby_birth_date: Date;
+          baby_gender: string | null;
         }>>`
           SELECT 
             cb.id as cb_id,
@@ -636,7 +639,8 @@ export class AdminService {
             cb.is_primary,
             b.id as baby_id,
             b.name as baby_name,
-            b.birth_date as baby_birth_date
+            b.birth_date as baby_birth_date,
+            b.gender as baby_gender
           FROM caregiver_babies cb
           INNER JOIN babies b ON cb.baby_id = b.id
           WHERE cb.caregiver_id = ${user.caregiver.id}
@@ -644,13 +648,14 @@ export class AdminService {
       : [];
 
     // Combine babies from both sources, avoiding duplicates
-    const babyMap = new Map<number, { id: number; name: string; birthDate: Date; role: string; status: string; source: string }>();
+    const babyMap = new Map<number, { id: number; name: string; birthDate: Date; gender: string | null; role: string; status: string; source: string }>();
 
     for (const cb of caregiverBabies) {
       babyMap.set(cb.baby_id, {
         id: cb.baby_id,
         name: cb.baby_name,
         birthDate: cb.baby_birth_date,
+        gender: cb.baby_gender,
         role: cb.is_primary ? 'PRIMARY_CAREGIVER' : cb.relationship,
         status: 'ACTIVE',
         source: 'caregiver',
@@ -663,6 +668,7 @@ export class AdminService {
           id: bm.baby_id,
           name: bm.baby_name,
           birthDate: bm.baby_birth_date,
+          gender: bm.baby_gender,
           role: bm.bm_role,
           status: bm.bm_status,
           source: 'member',
@@ -673,6 +679,27 @@ export class AdminService {
         existing.source = 'caregiver+member';
       }
     }
+
+    // Activity stats: routines logged for this user's babies + paywall hits + last login
+    const babyIds = Array.from(babyMap.keys());
+    const now = Date.now();
+    const since7d = new Date(now - 7 * 24 * 60 * 60 * 1000);
+    const since30d = new Date(now - 30 * 24 * 60 * 60 * 1000);
+
+    const [routinesLast7d, routinesLast30d, paywallHits, lastLogin] = await Promise.all([
+      babyIds.length
+        ? prisma.routineLog.count({ where: { babyId: { in: babyIds }, startTime: { gte: since7d } } })
+        : Promise.resolve(0),
+      babyIds.length
+        ? prisma.routineLog.count({ where: { babyId: { in: babyIds }, startTime: { gte: since30d } } })
+        : Promise.resolve(0),
+      prisma.auditEvent.count({ where: { userId, action: 'PAYWALL_HIT' } }),
+      prisma.auditEvent.findFirst({
+        where: { userId, action: 'USER_LOGIN' },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      }),
+    ]);
 
     return {
       id: user.id,
@@ -698,6 +725,11 @@ export class AdminService {
         : null,
       professional: user.professional,
       babies: Array.from(babyMap.values()),
+      babiesCount: babyMap.size,
+      routinesLast7d,
+      routinesLast30d,
+      paywallHits,
+      lastLoginAt: lastLogin?.createdAt ?? null,
     };
   }
 
