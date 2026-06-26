@@ -5,6 +5,7 @@ import { BlogService } from '../services/blog.service';
 import { AIContentService } from '../services/ai-content.service';
 import { AIImageService } from '../services/ai-image.service';
 import { ImageAgentImageService } from '../services/image-agent-image.service';
+import { extractMarkdownHeadings } from '../constants/image-agent';
 import {
   renderListHtml,
   renderNotFoundHtml,
@@ -70,6 +71,7 @@ export const n8nSubmitDraftSchema = z.object({
   excerpt: z.string().max(500).optional().default(''),
   coverImageUrl: z.string().url().optional(),
   categoryId: z.number().int().positive().optional(),
+  categoryName: z.string().min(1).max(100).optional(),
   tagNames: z.array(z.string().min(1).max(80)).max(20).optional(),
   seoTitle: z.string().max(120).optional(),
   seoDescription: z.string().max(300).optional(),
@@ -155,11 +157,19 @@ export const generateImageSchema = z.object({
   title: z.string().min(1).max(500),
   excerpt: z.string().max(500).optional(),
   customPrompt: z.string().max(2000).optional(),
+  content: z.string().max(60000).optional(),
   width: z.number().int().min(256).max(1920).optional(),
   height: z.number().int().min(256).max(1920).optional(),
   postId: z.number().int().positive().optional(),
   format: z.enum(['blog', 'instagram']).optional(),
   templateId: z.enum(['essencial', 'jardim', 'impulso', 'afeto']).optional(),
+});
+
+export const generateInlineImagesSchema = z.object({
+  postId: z.number().int().positive(),
+  count: z.number().int().min(1).max(4).optional(),
+  templateId: z.enum(['essencial', 'jardim', 'impulso', 'afeto']).optional(),
+  provider: z.enum(['gemini', 'openai', 'pollinations']).optional(),
 });
 
 // ==========================================
@@ -462,7 +472,9 @@ ${entries.map(e => `  <url>
 
   static async generateImage(req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction): Promise<void> {
     try {
-      const { title, excerpt, customPrompt, postId, format, templateId } = req.body;
+      const { title, excerpt, customPrompt, content, postId, format, templateId } = req.body;
+
+      const headings = content ? extractMarkdownHeadings(content) : undefined;
 
       const result = await ImageAgentImageService.generate({
         topic: title,
@@ -470,6 +482,7 @@ ${entries.map(e => `  <url>
         customPrompt,
         format: format ?? 'blog',
         templateId: templateId ?? 'essencial',
+        headings,
       });
 
       if (postId) {
@@ -480,6 +493,41 @@ ${entries.map(e => `  <url>
       }
 
       res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async generateInlineImages(req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction): Promise<void> {
+    try {
+      const { postId, count, templateId, provider } = req.body;
+
+      const post = await BlogService.getPostById(postId);
+
+      const images = await ImageAgentImageService.generateInlineImages({
+        topic: post.title,
+        content: post.content,
+        templateId: templateId ?? 'essencial',
+        provider,
+        count,
+      });
+
+      if (images.length === 0) {
+        res.json({
+          success: true,
+          data: { images: [], content: post.content, inserted: 0 },
+          message: 'Nenhum subtítulo (H2/H3) encontrado para gerar imagens de seção.',
+        });
+        return;
+      }
+
+      const updatedContent = ImageAgentImageService.insertInlineImages(post.content, images);
+      const updated = await BlogService.updatePost(postId, { content: updatedContent });
+
+      res.json({
+        success: true,
+        data: { images, content: updated.content, inserted: images.length },
+      });
     } catch (error) {
       next(error);
     }
@@ -591,9 +639,17 @@ ${entries.map(e => `  <url>
 
   static async n8nSubmitDraft(req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction): Promise<void> {
     try {
-      const body = req.body as N8nSubmitDraftBody;
+      const { categoryName, ...body } = req.body as N8nSubmitDraftBody;
+
+      // Resolve categoria pelo nome sugerido pela IA quando não há categoryId explícito
+      let categoryId = body.categoryId;
+      if (!categoryId && categoryName) {
+        categoryId = await BlogService.resolveOrCreateCategoryByName(categoryName);
+      }
+
       const post = await BlogService.createPost({
         ...body,
+        categoryId,
         aiGenerated: true,
         status: 'IN_REVIEW',
       });

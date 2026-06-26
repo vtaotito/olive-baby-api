@@ -13,6 +13,12 @@ interface TopicSuggestion {
   audience: ContentAudience;
 }
 
+interface ContentSource {
+  title: string;
+  url: string;
+  publisher?: string;
+}
+
 interface GeneratedContent {
   title: string;
   content: string;
@@ -22,6 +28,22 @@ interface GeneratedContent {
   seoKeywords: string[];
   suggestedCategory: string;
   suggestedTags: string[];
+  sources?: ContentSource[];
+  qualityScore?: number;
+  reviewSummary?: string;
+}
+
+interface ResearchResult {
+  summary: string;
+  sources: ContentSource[];
+}
+
+interface EditorialReview {
+  qualityScore: number;
+  safe: boolean;
+  issues: string[];
+  reviewSummary: string;
+  revisedContent?: string;
 }
 
 interface SEOOptimization {
@@ -118,6 +140,180 @@ async function callLLM(systemPrompt: string, userPrompt: string, temperature = 0
     }
   }
   return callOpenAI(systemPrompt, userPrompt, temperature);
+}
+
+/**
+ * Etapa de pesquisa/grounding. Usa a ferramenta nativa de web search da Anthropic
+ * para coletar fontes confiáveis (SBP, AAP, OMS, Ministério da Saúde) antes de redigir.
+ * Falha de forma graciosa (retorna null) quando indisponível, sem quebrar o fluxo.
+ */
+async function researchTopic(topic: {
+  title: string;
+  angle?: string;
+  targetKeywords?: string[];
+}): Promise<ResearchResult | null> {
+  if (!env.BLOG_AI_RESEARCH_ENABLED) return null;
+  if (!env.ANTHROPIC_API_KEY) {
+    logger.info('Blog research skipped: ANTHROPIC_API_KEY not set (web search requires Anthropic)');
+    return null;
+  }
+
+  const maxSources = Math.max(1, Math.min(env.BLOG_AI_RESEARCH_MAX_SOURCES, 8));
+  const system = `Você é um pesquisador de saúde infantil. Pesquise na web fontes CONFIÁVEIS e ATUAIS sobre o tema fornecido.
+Priorize: Sociedade Brasileira de Pediatria (SBP), American Academy of Pediatrics (AAP), OMS/WHO, Ministério da Saúde, UNICEF, periódicos científicos e diretrizes oficiais.
+Evite blogs comerciais, fóruns e fontes sem credibilidade.
+Ao final, responda APENAS com JSON válido (sem texto adicional) no formato:
+{ "summary": "resumo dos achados com os pontos-chave baseados em evidência (max 1200 chars)", "sources": [{ "title": "...", "url": "https://...", "publisher": "..." }] }
+Inclua no máximo ${maxSources} fontes, todas com URL real verificada na busca.`;
+
+  const userPrompt = `Tema: ${topic.title}
+${topic.angle ? `Ângulo: ${topic.angle}` : ''}
+${topic.targetKeywords?.length ? `Palavras-chave: ${topic.targetKeywords.join(', ')}` : ''}
+
+Pesquise e retorne o resumo de evidências + fontes confiáveis.`;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
+        max_tokens: 4096,
+        system,
+        messages: [{ role: 'user', content: userPrompt }],
+        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: maxSources }],
+      }),
+      signal: AbortSignal.timeout(120000),
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      logger.warn('Blog research web_search failed', { status: response.status, error: err.slice(0, 300) });
+      return null;
+    }
+
+    const data = await response.json() as { content?: Array<{ type: string; text?: string }> };
+    const text = (data.content || [])
+      .filter(b => b.type === 'text' && b.text)
+      .map(b => b.text as string)
+      .join('\n');
+
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+
+    const parsed = JSON.parse(jsonMatch[0]) as ResearchResult;
+    const sources = (parsed.sources || [])
+      .filter(s => s && typeof s.url === 'string' && /^https?:\/\//.test(s.url))
+      .slice(0, maxSources);
+
+    logger.info('Blog research completed', { topic: topic.title, sources: sources.length });
+    return { summary: parsed.summary || '', sources };
+  } catch (error) {
+    logger.warn('Blog research step errored, proceeding without grounding', {
+      error: (error as Error).message,
+    });
+    return null;
+  }
+}
+
+/**
+ * Auto-revisão editorial: 2ª passagem em baixa temperatura que checa segurança médica,
+ * precisão factual (vs. fontes), legibilidade e presença de CTA. Pode devolver o conteúdo
+ * revisado. Falha graciosamente devolvendo o conteúdo original com score neutro.
+ */
+async function reviewContent(args: {
+  title: string;
+  content: string;
+  audience: ContentAudience;
+  sources: ContentSource[];
+}): Promise<EditorialReview> {
+  const fallback: EditorialReview = {
+    qualityScore: 70,
+    safe: true,
+    issues: [],
+    reviewSummary: 'Revisão automática indisponível; conteúdo não alterado.',
+  };
+
+  if (!env.BLOG_AI_REVIEW_ENABLED) {
+    return { ...fallback, reviewSummary: 'Auto-revisão desabilitada por configuração.' };
+  }
+
+  const sourcesText = args.sources.length
+    ? args.sources.map(s => `- ${s.title} (${s.publisher || ''}): ${s.url}`).join('\n')
+    : 'Nenhuma fonte fornecida.';
+
+  const systemPrompt = `Você é um editor sênior de conteúdo de saúde infantil. Revise o artigo em Markdown com rigor:
+1. SEGURANÇA MÉDICA: não pode haver diagnóstico, prescrição de medicamentos/dosagens ou promessas de cura. Deve recomendar consultar profissional quando apropriado.
+2. PRECISÃO FACTUAL: afirmações devem ser consistentes com evidências e com as fontes fornecidas. Corrija exageros e generalizações sem suporte.
+3. LEGIBILIDADE: estrutura clara (H2/H3), parágrafos curtos, linguagem adequada à audiência.
+4. CTA: deve haver um call-to-action coerente para a audiência.
+
+Devolva o conteúdo revisado (corrija o que for necessário, preservando o sentido e o tamanho aproximado) e uma avaliação.
+
+Responda APENAS com JSON válido:
+{
+  "qualityScore": <0-100>,
+  "safe": <true|false>,
+  "issues": ["..."],
+  "reviewSummary": "resumo curto do que foi ajustado (max 400 chars)",
+  "revisedContent": "markdown completo revisado"
+}`;
+
+  const userPrompt = `Audiência: ${args.audience}
+Título: ${args.title}
+
+Fontes de referência:
+${sourcesText}
+
+Conteúdo (Markdown) a revisar:
+${args.content}`;
+
+  try {
+    const raw = await callLLM(systemPrompt, userPrompt, 0.2);
+    const parsed = JSON.parse(raw) as EditorialReview;
+    return {
+      qualityScore: typeof parsed.qualityScore === 'number' ? parsed.qualityScore : fallback.qualityScore,
+      safe: parsed.safe !== false,
+      issues: Array.isArray(parsed.issues) ? parsed.issues : [],
+      reviewSummary: parsed.reviewSummary || 'Revisão concluída.',
+      revisedContent: typeof parsed.revisedContent === 'string' && parsed.revisedContent.length > 200
+        ? parsed.revisedContent
+        : undefined,
+    };
+  } catch (error) {
+    logger.warn('Editorial review step errored, keeping original content', {
+      error: (error as Error).message,
+    });
+    return fallback;
+  }
+}
+
+/** Constrói a seção "Referências" em Markdown a partir das fontes coletadas. */
+function buildReferencesSection(sources: ContentSource[]): string {
+  if (!sources.length) return '';
+  const items = sources
+    .map(s => `- [${s.title || s.url}](${s.url})${s.publisher ? ` — ${s.publisher}` : ''}`)
+    .join('\n');
+  return `\n\n## Referências\n\n${items}\n`;
+}
+
+/** Busca posts publicados (título + slug) para sugerir links internos. */
+async function getInternalLinkCandidates(limit = 30): Promise<Array<{ title: string; slug: string }>> {
+  try {
+    const posts = await prisma.blogPost.findMany({
+      where: { status: 'PUBLISHED' },
+      orderBy: { publishedAt: 'desc' },
+      take: limit,
+      select: { title: true, slug: true },
+    });
+    return posts;
+  } catch {
+    return [];
+  }
 }
 
 export class AIContentService {
@@ -261,6 +457,12 @@ Categorias disponíveis: Sono do Bebê, Amamentação, Alimentação, Desenvolvi
 - Valorize o papel do cuidador como membro essencial da equipe de cuidados.`,
     };
 
+    // Etapas de qualidade (graciosas): pesquisa com fontes + candidatos a link interno
+    const [research, internalLinks] = await Promise.all([
+      researchTopic(topic),
+      getInternalLinkCandidates(),
+    ]);
+
     const systemPrompt = `Você é um redator sênior da OlieCare, especializado em conteúdo de saúde infantil para múltiplos públicos.
 
 ${audienceInstructions[audience]}
@@ -274,6 +476,8 @@ ${audienceInstructions[audience]}
 - Inclua seção FAQ no final (3-5 perguntas relevantes para a audiência)
 - Introdução direta que responda a intenção de busca (position zero)
 - Mencione o OlieCare de forma natural e contextualizada (não forçada)
+- LINKS INTERNOS: quando fizer sentido, insira 2-3 links internos para outros posts do blog usando o caminho relativo /blog/{slug} (somente os fornecidos na lista de posts existentes).
+- FONTES: baseie afirmações nas evidências de pesquisa fornecidas; quando houver fontes, cite-as ao longo do texto de forma natural.
 
 ⚠️ NUNCA faça diagnóstico médico nem prescreva medicamentos.
 ⚠️ SEMPRE recomende consultar profissional de saúde quando apropriado.
@@ -301,11 +505,19 @@ Responda em JSON:
       b2b_caregivers: 'Cuidadores e Babás',
     };
 
+    const researchBlock = research?.summary
+      ? `\n\nEvidências da pesquisa (use como base factual):\n${research.summary}\n\nFontes disponíveis:\n${research.sources.map(s => `- ${s.title} (${s.publisher || ''}): ${s.url}`).join('\n')}`
+      : '';
+
+    const internalLinksBlock = internalLinks.length
+      ? `\n\nPosts existentes para possíveis links internos (use /blog/{slug}):\n${internalLinks.map(p => `- ${p.title} -> /blog/${p.slug}`).join('\n')}`
+      : '';
+
     const userPrompt = `Escreva um artigo completo para a audiência "${audienceLabel[audience]}":
 
 Título: ${topic.title}
 ${topic.angle ? `Ângulo: ${topic.angle}` : ''}
-${keywordsHint}
+${keywordsHint}${researchBlock}${internalLinksBlock}
 
 Estruture com:
 1. Introdução impactante (responda a pergunta principal nos primeiros 2 parágrafos)
@@ -317,7 +529,38 @@ Estruture com:
 
     try {
       const raw = await callLLM(systemPrompt, userPrompt, 0.7);
-      return JSON.parse(raw) as GeneratedContent;
+      const generated = JSON.parse(raw) as GeneratedContent;
+      const sources = research?.sources || [];
+
+      // Auto-revisão editorial (segurança médica + fact-check + legibilidade)
+      const review = await reviewContent({
+        title: generated.title,
+        content: generated.content,
+        audience,
+        sources,
+      });
+      if (review.revisedContent) {
+        generated.content = review.revisedContent;
+      }
+
+      // Anexa seção de Referências se houver fontes e ainda não estiver presente
+      if (sources.length && !/##\s*Referências/i.test(generated.content)) {
+        generated.content += buildReferencesSection(sources);
+      }
+
+      generated.sources = sources;
+      generated.qualityScore = review.qualityScore;
+      generated.reviewSummary = review.reviewSummary;
+
+      logger.info('Blog content generated', {
+        title: generated.title,
+        audience,
+        sources: sources.length,
+        qualityScore: review.qualityScore,
+        safe: review.safe,
+      });
+
+      return generated;
     } catch (error) {
       logger.error('Failed to generate content', { error });
       throw error;

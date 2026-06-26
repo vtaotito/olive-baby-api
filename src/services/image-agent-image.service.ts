@@ -3,6 +3,7 @@ import { logger } from '../config/logger';
 import { AppError } from '../utils/errors/AppError';
 import {
   buildImageAgentPrompt,
+  extractMarkdownHeadings,
   IMAGE_AGENT_FORMATS,
   type ImageAgentFormat,
   type ImageAgentTemplateId,
@@ -23,6 +24,14 @@ export interface GenerateAgentImageOptions {
   format?: ImageAgentFormat;
   templateId?: ImageAgentTemplateId;
   provider?: ImageGenerationProvider;
+  /** Subtítulos (H2/H3) do artigo, para deixar a imagem mais fiel ao conteúdo. */
+  headings?: string[];
+}
+
+export interface InlineImageResult {
+  heading: string;
+  imageUrl: string;
+  prompt: string;
 }
 
 export interface GenerateAgentImageResult {
@@ -168,6 +177,7 @@ export class GeminiImageService {
       templateId,
       format,
       customPrompt: options.customPrompt,
+      headings: options.headings,
     });
 
     const model = env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
@@ -249,5 +259,73 @@ export class ImageAgentImageService {
   static async generate(options: GenerateAgentImageOptions): Promise<GenerateAgentImageResult> {
     const provider = ImageAgentImageService.resolveProvider(options.provider);
     return generateWithFallback(options, provider);
+  }
+
+  /**
+   * Gera imagens de seção (inline) a partir dos subtítulos H2/H3 do conteúdo Markdown.
+   * Cada imagem usa o subtítulo como foco temático, mantendo a identidade visual da marca.
+   */
+  static async generateInlineImages(args: {
+    topic: string;
+    content: string;
+    templateId?: ImageAgentTemplateId;
+    provider?: ImageGenerationProvider;
+    count?: number;
+  }): Promise<InlineImageResult[]> {
+    const headings = extractMarkdownHeadings(args.content);
+    if (headings.length === 0) return [];
+
+    const count = Math.max(1, Math.min(args.count ?? 2, 4));
+    // Distribui as seções escolhidas ao longo do artigo (evita escolher só as primeiras)
+    const step = Math.max(1, Math.floor(headings.length / count));
+    const chosen: string[] = [];
+    for (let i = 0; i < headings.length && chosen.length < count; i += step) {
+      chosen.push(headings[i]);
+    }
+
+    const results: InlineImageResult[] = [];
+    for (const heading of chosen) {
+      try {
+        const result = await ImageAgentImageService.generate({
+          topic: `${args.topic} — ${heading}`,
+          excerpt: heading,
+          format: 'blog',
+          templateId: args.templateId ?? 'essencial',
+          provider: args.provider,
+          headings: [heading],
+        });
+        results.push({ heading, imageUrl: result.imageUrl, prompt: result.prompt });
+      } catch (error) {
+        logger.warn('Inline image generation failed for heading', {
+          heading,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    return results;
+  }
+
+  /**
+   * Insere as imagens inline no conteúdo Markdown logo após cada subtítulo correspondente.
+   * Não duplica imagens caso o heading já tenha uma imagem na linha seguinte.
+   */
+  static insertInlineImages(content: string, images: InlineImageResult[]): string {
+    let updated = content;
+    for (const img of images) {
+      const escaped = img.heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // Captura a linha do heading (## ou ###) que contém exatamente o texto
+      const headingRegex = new RegExp(`^(#{2,3}\\s+${escaped})\\s*$`, 'm');
+      const match = updated.match(headingRegex);
+      if (!match) continue;
+
+      const alt = img.heading.replace(/"/g, '');
+      const imageMarkdown = `\n\n![${alt}](${img.imageUrl})`;
+      const insertPos = (match.index ?? 0) + match[0].length;
+      const after = updated.slice(insertPos, insertPos + 200);
+      if (after.includes(img.imageUrl)) continue; // já inserida
+
+      updated = updated.slice(0, insertPos) + imageMarkdown + updated.slice(insertPos);
+    }
+    return updated;
   }
 }

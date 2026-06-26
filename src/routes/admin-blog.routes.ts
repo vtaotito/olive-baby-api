@@ -24,6 +24,7 @@ import {
   generateContentSchema,
   optimizeSeoSchema,
   generateImageSchema,
+  generateInlineImagesSchema,
 } from '../controllers/blog.controller';
 
 const router = Router();
@@ -74,6 +75,7 @@ router.post('/ai/generate-topics', validateBody(generateTopicsSchema), BlogContr
 router.post('/ai/generate-content', validateBody(generateContentSchema), BlogController.generateContent);
 router.post('/ai/optimize-seo', validateBody(optimizeSeoSchema), BlogController.optimizeSeo);
 router.post('/ai/generate-image', validateBody(generateImageSchema), BlogController.generateImage);
+router.post('/ai/generate-inline-images', validateBody(generateInlineImagesSchema), BlogController.generateInlineImages);
 
 // Upload image from computer
 router.post('/upload-image', upload.single('image'), BlogController.uploadImage);

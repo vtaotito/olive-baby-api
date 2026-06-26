@@ -74,6 +74,14 @@ const envSchema = z.object({
   AI_TEMPERATURE: z.string().default('0.7').transform(Number),
   AI_RAG_TOP_K: z.string().default('6').transform(Number),
 
+  // Blog content agent — quality controls (pesquisa/grounding + auto-revisão editorial)
+  /** Habilita o passo de pesquisa com fontes (web search) antes de redigir. */
+  BLOG_AI_RESEARCH_ENABLED: z.string().default('true').transform(val => val !== 'false'),
+  /** Habilita o passo de auto-revisão editorial (segurança médica + fact-check). */
+  BLOG_AI_REVIEW_ENABLED: z.string().default('true').transform(val => val !== 'false'),
+  /** Número máximo de fontes coletadas na etapa de pesquisa. */
+  BLOG_AI_RESEARCH_MAX_SOURCES: z.string().default('5').transform(Number),
+
   // CPF Hash Salt
   CPF_SALT: z.string().optional(),
 

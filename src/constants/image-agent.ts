@@ -89,6 +89,8 @@ export function buildImageAgentPrompt(options: {
   templateId: ImageAgentTemplateId;
   format: ImageAgentFormat;
   customPrompt?: string;
+  /** Subtítulos (H2) do artigo, usados para tornar a imagem mais fiel ao conteúdo. */
+  headings?: string[];
 }): string {
   if (options.customPrompt?.trim()) {
     return `${options.customPrompt.trim()}. ${BASE_IMAGE_RULES}`;
@@ -104,11 +106,30 @@ export function buildImageAgentPrompt(options: {
 
   const topicClean = options.topic.trim().substring(0, 120);
 
+  const excerptHint = options.excerpt?.trim()
+    ? `Contexto do conteúdo: "${options.excerpt.trim().substring(0, 200)}".`
+    : '';
+
+  const headingsHint = options.headings?.length
+    ? `O artigo aborda: ${options.headings.slice(0, 5).map(h => h.trim()).filter(Boolean).join('; ').substring(0, 240)}. Reflita esse contexto na cena.`
+    : '';
+
   return [
     BASE_IMAGE_RULES,
     `Estilo visual: ${template.stylePrompt}.`,
     `Inspire-se no tema "${topicClean}" — traduza em emoção e momento cotidiano, não em literalidade.`,
+    excerptHint,
+    headingsHint,
     aspect,
     `Resolução alvo ${format.width}x${format.height}.`,
-  ].join(' ');
+  ].filter(Boolean).join(' ');
+}
+
+/** Extrai os títulos de seção (H2/H3) de um conteúdo Markdown. */
+export function extractMarkdownHeadings(content: string, max = 8): string[] {
+  const matches = content.match(/^#{2,3}\s+(.+)$/gm) || [];
+  return matches
+    .map(h => h.replace(/^#{2,3}\s+/, '').replace(/[#*_`]/g, '').trim())
+    .filter(h => h.length > 0 && !/^refer[êe]ncias$/i.test(h) && !/^faq$/i.test(h) && !/^perguntas/i.test(h))
+    .slice(0, max);
 }

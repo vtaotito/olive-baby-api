@@ -61,6 +61,26 @@ export class BlogService {
     return prisma.blogCategory.delete({ where: { id } });
   }
 
+  /**
+   * Resolve uma categoria pelo nome (case-insensitive). Se não existir, cria.
+   * Usado pelo agente n8n, que envia o nome sugerido pela IA (`suggestedCategory`).
+   */
+  static async resolveOrCreateCategoryByName(name: string): Promise<number | undefined> {
+    const trimmed = name.trim();
+    if (!trimmed) return undefined;
+
+    const slug = slugify(trimmed);
+    const existing = await prisma.blogCategory.findFirst({
+      where: { OR: [{ slug }, { name: { equals: trimmed, mode: 'insensitive' } }] },
+    });
+    if (existing) return existing.id;
+
+    const created = await prisma.blogCategory.create({
+      data: { name: trimmed, slug },
+    });
+    return created.id;
+  }
+
   // ==========================================
   // Tags
   // ==========================================
