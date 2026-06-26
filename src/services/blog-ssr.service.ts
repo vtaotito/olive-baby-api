@@ -20,10 +20,41 @@ import { AppError } from '../utils/errors/AppError';
  */
 
 const SITE_NAME = 'OlieCare';
+const BRAND_SUFFIX = ` | ${SITE_NAME}`;
+// Limite prático para o <title> antes do Google truncar (~60 chars).
+const MAX_TITLE_LENGTH = 60;
+const BLOG_BASE_TITLE = `Blog ${SITE_NAME} — Cuidados com Bebê Baseados em Evidências`;
 
 function getSiteUrl(): string {
   // FRONTEND_URL vem do env (prod: https://oliecare.cloud)
   return (env.FRONTEND_URL || 'https://oliecare.cloud').replace(/\/$/, '');
+}
+
+/** Verifica se o título já menciona a marca, para não duplicá-la. */
+function containsBrand(title: string): boolean {
+  return new RegExp(`(^|[^a-z])${SITE_NAME}([^a-z]|$)`, 'i').test(title);
+}
+
+/**
+ * Aplica o sufixo de marca de forma segura ao <title>:
+ *  - Não duplica a marca quando o título já a contém (ex.: seoTitle manual).
+ *  - Não anexa quando o resultado ficaria longo demais para o Google exibir.
+ */
+function withBrand(rawTitle?: string | null): string {
+  const title = (rawTitle || '').trim();
+  if (!title) return SITE_NAME;
+  if (containsBrand(title)) return title;
+  if (title.length + BRAND_SUFFIX.length > MAX_TITLE_LENGTH + 5) return title;
+  return `${title}${BRAND_SUFFIX}`;
+}
+
+/** Converte um slug (ex.: "sono-infantil") em rótulo legível ("Sono Infantil"). */
+function prettifySlug(slug?: string | null): string {
+  return (slug || '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\p{L}/gu, (c) => c.toUpperCase());
 }
 
 function escapeHtml(value: unknown): string {
@@ -235,7 +266,7 @@ export async function renderPostHtml(opts: SsrPostOptions): Promise<string> {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${escapeHtml(title)} | ${SITE_NAME}</title>
+<title>${escapeHtml(withBrand(title))}</title>
 <meta name="description" content="${escapeAttr(description)}">
 ${keywords ? `<meta name="keywords" content="${escapeAttr(keywords)}">` : ''}
 <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
@@ -365,11 +396,21 @@ export async function renderListHtml(opts: SsrListOptions = {}): Promise<string>
     throw AppError.notFound('Página de blog não encontrada');
   }
 
-  const title = opts.category
-    ? `Blog OlieCare - Categoria ${opts.category}`
-    : opts.tag
-      ? `Blog OlieCare - Tag ${opts.tag}`
-      : `Blog | ${SITE_NAME} - Cuidados com Bebê`;
+  // Resolve nomes legíveis a partir dos posts retornados (fallback: slug prettificado),
+  // evitando títulos como "Blog OlieCare - Categoria sono-infantil".
+  const categoryName = opts.category
+    ? result.data.find(p => p.category?.slug === opts.category)?.category?.name || prettifySlug(opts.category)
+    : undefined;
+  const tagName = opts.tag
+    ? result.data.flatMap(p => p.tags || []).find(t => t.slug === opts.tag)?.name || prettifySlug(opts.tag)
+    : undefined;
+
+  let title: string;
+  if (categoryName) title = `${categoryName} | Blog ${SITE_NAME}`;
+  else if (tagName) title = `${tagName} | Blog ${SITE_NAME}`;
+  else if (opts.q) title = `Busca por "${opts.q}" | Blog ${SITE_NAME}`;
+  else title = BLOG_BASE_TITLE;
+  if (page > 1) title = `${title} — Página ${page}`;
   const description = 'Artigos baseados em evidências sobre cuidados com bebês, amamentação, sono infantil, desenvolvimento e dicas para pais e profissionais de saúde.';
   const canonicalParams = new URLSearchParams();
   if (opts.category) canonicalParams.set('category', opts.category);
