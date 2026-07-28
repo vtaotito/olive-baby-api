@@ -26,6 +26,7 @@ export interface GenerateOpenAIImageOptions {
   customPrompt?: string;
   format?: ImageAgentFormat;
   templateId?: ImageAgentTemplateId;
+  headings?: string[];
 }
 
 export class OpenAIImageService {
@@ -51,6 +52,7 @@ export class OpenAIImageService {
       templateId,
       format,
       customPrompt: options.customPrompt,
+      headings: options.headings,
     });
 
     const model = env.OPENAI_IMAGE_MODEL || 'gpt-image-1';

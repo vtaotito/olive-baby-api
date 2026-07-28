@@ -5,6 +5,7 @@ import { AISocialContentService } from '../services/ai-social-content.service';
 import { SocialPublisherService } from '../services/social-publisher.service';
 import { AIImageService } from '../services/ai-image.service';
 import { ImageAgentImageService } from '../services/image-agent-image.service';
+import { ContentStudioService, type ContentAudience } from '../services/content-studio.service';
 import { AuthenticatedRequest, ApiResponse } from '../types';
 
 // ==========================================
@@ -80,6 +81,7 @@ export const generateSocialImageSchema = z.object({
   postId: z.number().int().positive().optional(),
   format: z.enum(['blog', 'instagram']).optional(),
   templateId: z.enum(['essencial', 'jardim', 'impulso', 'afeto']).optional(),
+  audience: audienceEnum,
   customPrompt: z.string().max(2000).optional(),
 });
 
@@ -206,14 +208,25 @@ export class SocialController {
 
   static async generateImage(req: AuthenticatedRequest, res: Response<ApiResponse>, next: NextFunction): Promise<void> {
     try {
-      const { caption, postId, format, templateId, customPrompt } = req.body;
+      const { caption, postId, format, templateId, audience, customPrompt } = req.body;
+
+      let resolvedAudience = audience as ContentAudience | undefined;
+      if (!resolvedAudience && postId) {
+        const existing = await SocialService.getPostById(postId);
+        resolvedAudience = (existing.audience as ContentAudience | null) || undefined;
+      }
+
+      const resolvedTemplate = ContentStudioService.resolveTemplate(
+        resolvedAudience || 'b2c_parents',
+        templateId
+      );
 
       const result = await ImageAgentImageService.generate({
         topic: caption.substring(0, 200),
         excerpt: caption.substring(0, 400),
         customPrompt,
         format: format ?? 'instagram',
-        templateId: templateId ?? 'essencial',
+        templateId: resolvedTemplate,
       });
 
       if (postId) {

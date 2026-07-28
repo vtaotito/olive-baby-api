@@ -79,9 +79,65 @@ const BASE_IMAGE_RULES =
   'Temas: maternidade, paternidade, amamentação, sono do bebê, primeiros cuidados, vínculo afetivo. ' +
   'Iluminação natural difusa, profundidade de campo rasa, tom acolhedor e esperançoso. ' +
   'Esta imagem é APENAS o fundo fotográfico — o título e CTA serão sobrepostos depois pelo template. ' +
-  'Deixe 40% da composição com área mais limpa/desfocada para overlay de texto. ' +
+  'Deixe cerca de 40% da composição com área mais limpa/desfocada para overlay de texto. ' +
   'PROIBIDO: qualquer texto, letras, números, tipografia, watermark, logo, legenda ou UI na imagem. ' +
+  'PROIBIDO: mãos deformadas, dedos extras, bebê irrealista, proporções estranhas, hospital clichê, neonato em UTI sem contexto, stock pose olhando para câmera forçada. ' +
   'Somente fotografia pura, alta qualidade.';
+
+/** Negative prompt compartilhado (Pollinations e referência para providers). */
+export const IMAGE_NEGATIVE_PROMPT =
+  'text, letters, words, numbers, typography, writing, captions, watermark, logo, signature, ' +
+  'label, title, subtitle, heading, font, alphabet, UI, interface, stock photo pose, plastic skin, ' +
+  'oversaturated, CGI, 3d render, deformed hands, extra fingers, uncanny baby, hospital cliché, ' +
+  'forced smile to camera, cartoon, anime, collage';
+
+type SceneCue = { pattern: RegExp; direction: string };
+
+const SCENE_CUES: SceneCue[] = [
+  {
+    pattern: /amament|lacta|peito|mamad|aleitamento/i,
+    direction:
+      'Direção visual: momento íntimo de amamentação ou vínculo lactante–bebê, luz suave, sem exposição explícita.',
+  },
+  {
+    pattern: /sono|dorm|nana|ber[cç]o|noite|rotina noturna/i,
+    direction:
+      'Direção visual: ritual de sono calmo — berço, luz baixa, mão acolhedora, atmosfera serena.',
+  },
+  {
+    pattern: /pediatr|consult[oó]rio|m[eé]dic|vacin|sa[uú]de/i,
+    direction:
+      'Direção visual: cuidado profissional acolhedor — confiança e calma, sem equipamento hospitalar agressivo.',
+  },
+  {
+    pattern: /banho|higiene|frald|troca|cuidad/i,
+    direction:
+      'Direção visual: rotina cotidiana de cuidados — gestos práticos e afetivos em ambiente doméstico.',
+  },
+  {
+    pattern: /v[ií]nculo|carinh|abra[cç]|colo|afeto|pai|m[aã]e|fam[ií]lia/i,
+    direction:
+      'Direção visual: vínculo familiar — colo, olhar, toque gentil entre cuidador e bebê.',
+  },
+  {
+    pattern: /alimenta|papinha|introdu[cç][aã]o|refei[cç]/i,
+    direction:
+      'Direção visual: alimentação infantil em casa — utensílios simples, clima leve e cotidiano.',
+  },
+  {
+    pattern: /desenvolvimento|marco|engatinh|primeiro passo|brinc/i,
+    direction:
+      'Direção visual: marco de desenvolvimento — exploração segura, brincadeira e descoberta.',
+  },
+];
+
+function resolveSceneDirection(topic: string, excerpt?: string, headings?: string[]): string {
+  const haystack = [topic, excerpt || '', ...(headings || [])].join(' ');
+  for (const cue of SCENE_CUES) {
+    if (cue.pattern.test(haystack)) return cue.direction;
+  }
+  return 'Direção visual: momento cotidiano autêntico de cuidado infantil no Brasil, emoção genuína sem literalidade forçada.';
+}
 
 export function buildImageAgentPrompt(options: {
   topic: string;
@@ -92,37 +148,47 @@ export function buildImageAgentPrompt(options: {
   /** Subtítulos (H2) do artigo, usados para tornar a imagem mais fiel ao conteúdo. */
   headings?: string[];
 }): string {
-  if (options.customPrompt?.trim()) {
-    return `${options.customPrompt.trim()}. ${BASE_IMAGE_RULES}`;
-  }
-
   const template = IMAGE_AGENT_TEMPLATES.find(t => t.id === options.templateId) ?? IMAGE_AGENT_TEMPLATES[0];
   const format = IMAGE_AGENT_FORMATS[options.format];
 
   const aspect =
     options.format === 'blog'
-      ? 'Composição widescreen 16:9 para capa de blog, sujeito principal à direita ou centralizado com margem para texto à esquerda.'
-      : 'Composição quadrada 1:1 para Instagram, sujeito no terço superior, área inferior reservada para overlay de texto.';
+      ? 'Composição widescreen 16:9 para capa de blog: sujeito principal à direita ou centro-direita, margem limpa/desfocada à esquerda (~40%) para overlay de texto.'
+      : 'Composição quadrada 1:1 para Instagram: sujeito no terço superior/centro, área inferior (~35%) mais limpa/desfocada para overlay de texto.';
 
-  const topicClean = options.topic.trim().substring(0, 120);
-
+  const topicClean = options.topic.trim().substring(0, 200);
   const excerptHint = options.excerpt?.trim()
-    ? `Contexto do conteúdo: "${options.excerpt.trim().substring(0, 200)}".`
+    ? `Contexto do conteúdo: "${options.excerpt.trim().substring(0, 400)}".`
     : '';
 
   const headingsHint = options.headings?.length
-    ? `O artigo aborda: ${options.headings.slice(0, 5).map(h => h.trim()).filter(Boolean).join('; ').substring(0, 240)}. Reflita esse contexto na cena.`
+    ? `O artigo aborda: ${options.headings
+        .slice(0, 8)
+        .map(h => h.trim())
+        .filter(Boolean)
+        .join('; ')
+        .substring(0, 360)}. Reflita esse contexto na cena sem ilustrar texto.`
+    : '';
+
+  const sceneDirection = resolveSceneDirection(topicClean, options.excerpt, options.headings);
+  const customHint = options.customPrompt?.trim()
+    ? `Direção adicional do editor: ${options.customPrompt.trim().substring(0, 500)}.`
     : '';
 
   return [
     BASE_IMAGE_RULES,
     `Estilo visual: ${template.stylePrompt}.`,
     `Inspire-se no tema "${topicClean}" — traduza em emoção e momento cotidiano, não em literalidade.`,
+    sceneDirection,
     excerptHint,
     headingsHint,
+    customHint,
     aspect,
     `Resolução alvo ${format.width}x${format.height}.`,
-  ].filter(Boolean).join(' ');
+    `Evite: ${IMAGE_NEGATIVE_PROMPT}.`,
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 /** Extrai os títulos de seção (H2/H3) de um conteúdo Markdown. */

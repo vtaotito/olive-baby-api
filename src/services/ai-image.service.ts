@@ -1,6 +1,13 @@
 import { env } from '../config/env';
 import { logger } from '../config/logger';
 import { assertValidImageBuffer } from '../utils/validators/image-magic-bytes';
+import {
+  buildImageAgentPrompt,
+  IMAGE_AGENT_FORMATS,
+  IMAGE_NEGATIVE_PROMPT,
+  type ImageAgentFormat,
+  type ImageAgentTemplateId,
+} from '../constants/image-agent';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
@@ -14,25 +21,10 @@ function ensureImageDir() {
   }
 }
 
-function buildPrompt(title: string, excerpt?: string): string {
-  const topicHint = excerpt ? ` The scene should visually represent: ${excerpt.substring(0, 120)}.` : '';
-
-  return (
-    `A beautiful, photorealistic illustration about "${title}".${topicHint} ` +
-    `Warm pastel color palette with soft olive green and cream tones. ` +
-    `The image depicts a cozy, tender scene related to baby care, parenting, or early childhood. ` +
-    `Soft natural lighting, shallow depth of field, editorial photography style. ` +
-    `STRICTLY NO TEXT. STRICTLY NO LETTERS. STRICTLY NO WORDS. STRICTLY NO NUMBERS. ` +
-    `STRICTLY NO TYPOGRAPHY. STRICTLY NO WRITING OF ANY KIND ANYWHERE IN THE IMAGE. ` +
-    `STRICTLY NO WATERMARKS. STRICTLY NO LOGOS. STRICTLY NO CAPTIONS. ` +
-    `Pure visual illustration only. High quality, 16:9 cinematic composition.`
-  );
-}
-
 export class AIImageService {
   /**
-   * Generate a blog cover image using Pollinations.ai (free, no API key)
-   * Returns the public URL of the generated image
+   * Generate a cover/social image using Pollinations.ai (fallback, no API key).
+   * Uses the same prompt builder as Gemini/OpenAI for template consistency.
    */
   static async generateCoverImage(options: {
     title: string;
@@ -40,17 +32,37 @@ export class AIImageService {
     customPrompt?: string;
     width?: number;
     height?: number;
+    format?: ImageAgentFormat;
+    templateId?: ImageAgentTemplateId;
+    headings?: string[];
   }): Promise<{ imageUrl: string; prompt: string }> {
-    const prompt = options.customPrompt || buildPrompt(options.title, options.excerpt);
-    const width = options.width || 1200;
-    const height = options.height || 675; // 16:9 ratio
+    const format = options.format ?? 'blog';
+    const templateId = options.templateId ?? 'essencial';
+    const formatConfig = IMAGE_AGENT_FORMATS[format];
+    const width = options.width || formatConfig.width;
+    const height = options.height || formatConfig.height;
+
+    const prompt = buildImageAgentPrompt({
+      topic: options.title,
+      excerpt: options.excerpt,
+      templateId,
+      format,
+      customPrompt: options.customPrompt,
+      headings: options.headings,
+    });
 
     const encodedPrompt = encodeURIComponent(prompt);
     const seed = crypto.randomInt(1, 999999);
-    const negative = encodeURIComponent('text, letters, words, numbers, typography, writing, captions, watermark, logo, signature, label, title, subtitle, heading, font, alphabet, character');
+    const negative = encodeURIComponent(IMAGE_NEGATIVE_PROMPT);
     const pollinationsUrl = `${POLLINATIONS_BASE}/${encodedPrompt}?width=${width}&height=${height}&model=flux&seed=${seed}&enhance=true&nologo=true&negative=${negative}`;
 
-    logger.info('Generating blog cover image via Pollinations', { title: options.title, width, height });
+    logger.info('Generating image via Pollinations', {
+      title: options.title.substring(0, 80),
+      width,
+      height,
+      format,
+      templateId,
+    });
 
     try {
       let response: Response | null = null;
@@ -85,11 +97,11 @@ export class AIImageService {
       const frontendUrl = env.FRONTEND_URL || 'https://oliecare.cloud';
       const imageUrl = `${frontendUrl}/api/v1/blog/images/${filename}`;
 
-      logger.info('Blog cover image generated', { filename, size: buffer.length });
+      logger.info('Pollinations image generated', { filename, size: buffer.length, format, templateId });
 
       return { imageUrl, prompt };
     } catch (error) {
-      logger.error('Failed to generate blog cover image', { error });
+      logger.error('Failed to generate image via Pollinations', { error });
       throw error;
     }
   }

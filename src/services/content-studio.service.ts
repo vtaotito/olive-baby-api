@@ -5,7 +5,7 @@ import { AISocialContentService } from './ai-social-content.service';
 import { BlogService } from './blog.service';
 import { SocialService } from './social.service';
 import { ImageAgentImageService } from './image-agent-image.service';
-import type { ImageAgentTemplateId } from '../constants/image-agent';
+import { extractMarkdownHeadings, type ImageAgentTemplateId } from '../constants/image-agent';
 
 export type ContentAudience =
   | 'b2c_parents'
@@ -183,9 +183,7 @@ export class ContentStudioService {
         excerpt: post.excerpt || undefined,
         format: 'blog',
         templateId,
-        headings: post.content
-          ? post.content.match(/^#{2,3}\s+(.+)$/gm)?.map(h => h.replace(/^#{2,3}\s+/, ''))?.slice(0, 5)
-          : undefined,
+        headings: extractMarkdownHeadings(post.content),
       });
       post = await BlogService.updatePost(post.id, {
         coverImageUrl: image.imageUrl,
@@ -377,6 +375,7 @@ export class ContentStudioService {
         excerpt: post.excerpt || undefined,
         format: 'blog',
         templateId: tmpl,
+        headings: extractMarkdownHeadings(post.content),
       });
       const updated = await BlogService.updatePost(id, {
         coverImageUrl: image.imageUrl,

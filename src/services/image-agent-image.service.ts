@@ -154,6 +154,9 @@ async function generateWithProvider(
     customPrompt: options.customPrompt,
     width: formatConfig.width,
     height: formatConfig.height,
+    format,
+    templateId: options.templateId ?? 'essencial',
+    headings: options.headings,
   });
   const filename = result.imageUrl.split('/').pop() || `pollinations-${Date.now()}.jpg`;
   return { ...result, filename, provider: 'pollinations' };
