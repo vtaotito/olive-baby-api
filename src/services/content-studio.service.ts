@@ -196,24 +196,35 @@ export class ContentStudioService {
       });
     }
 
+    // Inline images run in background so the HTTP response returns before
+    // proxy/browser timeouts (content + cover already take most of the budget).
     if (input.generateInlineImages) {
-      try {
-        const images = await ImageAgentImageService.generateInlineImages({
-          topic: post.title,
-          content: post.content,
-          templateId,
-          count: 2,
-        });
-        if (images.length) {
-          const content = ImageAgentImageService.insertInlineImages(post.content, images);
-          post = await BlogService.updatePost(post.id, { content });
+      const postId = post.id;
+      const topic = post.title;
+      const baseContent = post.content;
+      void (async () => {
+        try {
+          const images = await ImageAgentImageService.generateInlineImages({
+            topic,
+            content: baseContent,
+            templateId,
+            count: 2,
+          });
+          if (images.length) {
+            const content = ImageAgentImageService.insertInlineImages(baseContent, images);
+            await BlogService.updatePost(postId, { content });
+            logger.info('Content Studio inline images inserted (async)', {
+              postId,
+              count: images.length,
+            });
+          }
+        } catch (error) {
+          logger.warn('Content Studio inline images failed', {
+            postId,
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
-      } catch (error) {
-        logger.warn('Content Studio inline images failed', {
-          postId: post.id,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
+      })();
     }
 
     return post;
