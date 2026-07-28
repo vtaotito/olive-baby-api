@@ -35,6 +35,7 @@ import blogRoutes from './blog.routes';
 import adminBlogRoutes from './admin-blog.routes';
 import adminSocialRoutes from './admin-social.routes';
 import adminImageAgentRoutes from './admin-image-agent.routes';
+import adminContentRoutes from './admin-content.routes';
 
 const router = Router();
 
@@ -74,6 +75,7 @@ router.use('/blog', blogRoutes);
 router.use('/admin/blog', adminBlogRoutes);
 router.use('/admin/social', adminSocialRoutes);
 router.use('/admin/image-agent', adminImageAgentRoutes);
+router.use('/admin/content', adminContentRoutes);
 
 // IMPORTANTE: Rotas públicas de convite DEVEM vir ANTES de rotas com authMiddleware global
 // Isso garante que /invites/verify-token seja acessível sem autenticação

@@ -273,6 +273,10 @@ export class BlogService {
     schemaMarkup?: Record<string, unknown>;
     aiGenerated?: boolean;
     aiPromptUsed?: string;
+    audience?: string;
+    qualityScore?: number;
+    sources?: unknown;
+    reviewSummary?: string;
     authorId?: number;
     status?: BlogPostStatus;
   }) {
@@ -300,6 +304,10 @@ export class BlogService {
         readingTimeMin,
         aiGenerated: data.aiGenerated || false,
         aiPromptUsed: data.aiPromptUsed,
+        audience: data.audience,
+        qualityScore: data.qualityScore,
+        sources: data.sources as Prisma.InputJsonValue | undefined,
+        reviewSummary: data.reviewSummary,
         authorId: data.authorId,
         status: data.status || 'DRAFT',
       },
@@ -325,6 +333,11 @@ export class BlogService {
     ogImageUrl?: string;
     schemaMarkup?: Record<string, unknown>;
     status?: BlogPostStatus;
+    aiGenerated?: boolean;
+    audience?: string | null;
+    qualityScore?: number | null;
+    sources?: unknown;
+    reviewSummary?: string | null;
   }) {
     const post = await prisma.blogPost.findUnique({ where: { id } });
     if (!post) throw AppError.notFound('Post não encontrado');
@@ -355,6 +368,11 @@ export class BlogService {
     if (data.ogImageUrl !== undefined) updateData.ogImageUrl = data.ogImageUrl;
     if (data.schemaMarkup !== undefined) updateData.schemaMarkup = data.schemaMarkup as Prisma.InputJsonValue;
     if (data.status !== undefined) updateData.status = data.status;
+    if (data.aiGenerated !== undefined) updateData.aiGenerated = data.aiGenerated;
+    if (data.audience !== undefined) updateData.audience = data.audience;
+    if (data.qualityScore !== undefined) updateData.qualityScore = data.qualityScore;
+    if (data.sources !== undefined) updateData.sources = data.sources as Prisma.InputJsonValue;
+    if (data.reviewSummary !== undefined) updateData.reviewSummary = data.reviewSummary;
 
     await prisma.blogPost.update({ where: { id }, data: updateData });
 

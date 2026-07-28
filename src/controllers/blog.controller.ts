@@ -97,6 +97,10 @@ export const createPostSchema = z.object({
   schemaMarkup: z.record(z.unknown()).optional(),
   aiGenerated: z.boolean().optional(),
   aiPromptUsed: z.string().optional(),
+  audience: z.string().max(40).optional(),
+  qualityScore: z.number().int().min(0).max(100).optional(),
+  sources: z.unknown().optional(),
+  reviewSummary: z.string().max(2000).optional(),
   status: z.enum(['IDEA', 'DRAFT', 'IN_REVIEW']).optional(),
 });
 
@@ -113,6 +117,11 @@ export const updatePostSchema = z.object({
   ogImageUrl: z.string().url().nullable().optional(),
   schemaMarkup: z.record(z.unknown()).optional(),
   status: z.enum(['IDEA', 'DRAFT', 'IN_REVIEW']).optional(),
+  aiGenerated: z.boolean().optional(),
+  audience: z.string().max(40).nullable().optional(),
+  qualityScore: z.number().int().min(0).max(100).nullable().optional(),
+  sources: z.unknown().optional(),
+  reviewSummary: z.string().max(2000).nullable().optional(),
 });
 
 export const reviewPostSchema = z.object({

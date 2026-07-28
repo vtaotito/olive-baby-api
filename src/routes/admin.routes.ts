@@ -2,8 +2,16 @@
 import { Router } from 'express';
 import { AdminController } from '../controllers/admin.controller';
 import { BlogController } from '../controllers/blog.controller';
-import { n8nSubmitDraftSchema } from '../controllers/blog.controller';
+import { n8nSubmitDraftSchema, generateTopicsSchema } from '../controllers/blog.controller';
 import { SocialController } from '../controllers/social.controller';
+import { generateSocialTopicsSchema } from '../controllers/social.controller';
+import {
+  ContentStudioController,
+  contentGenerateSchema,
+  contentRegenerateSchema,
+  contentFromBlogSchema,
+  contentQueueQuerySchema,
+} from '../controllers/content-studio.controller';
 import { authMiddleware, requireAdmin } from '../middlewares/auth.middleware';
 import { n8nAuthMiddleware } from '../middlewares/n8n-auth.middleware';
 import { validateBody, validateQuery } from '../middlewares/validation.middleware';
@@ -63,6 +71,38 @@ n8nRouter.post(
 );
 n8nRouter.get('/blog-pending-topics', BlogController.n8nPendingTopics);
 n8nRouter.post('/social-submit-draft', SocialController.n8nSubmitDraft);
+
+// AI topics (n8n token) + Content Studio unified job
+n8nRouter.post(
+  '/blog/ai/generate-topics',
+  validateBody(generateTopicsSchema),
+  BlogController.generateTopics
+);
+n8nRouter.post(
+  '/social/ai/generate-topics',
+  validateBody(generateSocialTopicsSchema),
+  SocialController.generateTopics
+);
+n8nRouter.post(
+  '/content/generate',
+  validateBody(contentGenerateSchema),
+  ContentStudioController.generate
+);
+n8nRouter.get(
+  '/content/queue',
+  validateQuery(contentQueueQuerySchema),
+  ContentStudioController.getQueue
+);
+n8nRouter.post(
+  '/content/regenerate',
+  validateBody(contentRegenerateSchema),
+  ContentStudioController.regenerate
+);
+n8nRouter.post(
+  '/content/from-blog',
+  validateBody(contentFromBlogSchema),
+  ContentStudioController.createSocialFromBlog
+);
 
 router.use('/n8n', n8nRouter);
 
