@@ -19,6 +19,9 @@ const router = Router();
 // POST /api/v1/auth/register - Registro de usuário
 router.post('/register', validateBody(registerSchema), AuthController.register);
 
+// GET /api/v1/auth/session-repair - Limpa SW/cache antigo (público)
+router.get('/session-repair', AuthController.repairSession);
+
 // POST /api/v1/auth/login - Login
 router.post('/login', validateBody(loginSchema), AuthController.login);
 

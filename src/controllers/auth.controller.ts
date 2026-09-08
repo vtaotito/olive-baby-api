@@ -74,6 +74,54 @@ export class AuthController {
     }
   }
 
+  /**
+   * Página pública para destravar clientes presos em Service Worker antigo.
+   * O SW denylist inclui /^\/api/, então esta URL sempre vai à rede.
+   */
+  static repairSession(req: Request, res: Response): void {
+    res.status(200).type('html').set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      'Pragma': 'no-cache',
+    }).send(`<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="robots" content="noindex" />
+  <title>Atualizando sessão — OlieCare</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #f7f8f3; color: #1f2937;
+      display: flex; min-height: 100vh; align-items: center; justify-content: center; margin: 0; }
+    .card { background: #fff; padding: 2rem; border-radius: 16px; max-width: 28rem;
+      box-shadow: 0 10px 30px rgba(0,0,0,.06); text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Atualizando o app</h1>
+    <p>Limpando cache antigo para o login voltar a funcionar...</p>
+  </div>
+  <script>
+    (async function () {
+      try {
+        localStorage.removeItem('auth_tokens');
+        localStorage.removeItem('user');
+        localStorage.removeItem('olive-baby-auth');
+        if ('serviceWorker' in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(function (r) { return r.unregister(); }));
+        }
+        if (window.caches) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map(function (k) { return caches.delete(k); }));
+        }
+      } catch (e) {}
+      location.replace('/login?repaired=1');
+    })();
+  </script>
+</body>
+</html>`);
+  }
+
   static async login(
     req: Request,
     res: Response<ApiResponse>,

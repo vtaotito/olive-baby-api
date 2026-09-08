@@ -66,6 +66,15 @@ export function errorMiddleware(
     return;
   }
 
+  // JSON malformado (body-parser) — não é falha interna
+  if (error instanceof SyntaxError && 'body' in error) {
+    res.status(400).json({
+      success: false,
+      message: 'JSON inválido no corpo da requisição',
+    });
+    return;
+  }
+
   // Erro de validação Zod
   if (error instanceof ZodError) {
     logger.warn('Validation Error', {
