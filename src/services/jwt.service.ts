@@ -13,8 +13,11 @@ export class JwtService {
   }
 
   static generateRefreshToken(payload: JwtPayload): string {
+    // jwtid garante unicidade: sem ele, jwt.sign gera o mesmo token no mesmo
+    // segundo e viola refresh_tokens.token @unique em logins paralelos
     return jwt.sign(payload, JWT_CONFIG.refreshToken.secret, {
       expiresIn: JWT_CONFIG.refreshToken.expiresIn,
+      jwtid: uuidv4(),
     } as SignOptions);
   }
 
@@ -43,7 +46,6 @@ export class JwtService {
       },
     });
 
-    // Salva novo token
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 dias
 
