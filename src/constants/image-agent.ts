@@ -44,52 +44,52 @@ export const IMAGE_AGENT_TEMPLATES: ImageAgentTemplate[] = [
   {
     id: 'essencial',
     label: 'Essencial',
-    description: 'Clean com barra lateral',
+    description: 'Clean editorial, confiança',
     stylePrompt:
-      'Essencial OlieCare: fundo claro creme (#f9f6f1), luz natural suave, composição editorial limpa com espaço negativo generoso para overlay de texto à esquerda, sensação de calma e confiança',
+      'Template Essencial: interior residencial brasileiro claro, paredes creme linho (#f9f6f1), madeira clara, roupa em tons neutros e verde-oliva. Luz de janela lateral (north light), 85mm f/1.8, espaço negativo generoso à esquerda. Clima de calma profissional, como editorial de lifestyle premium.',
   },
   {
     id: 'jardim',
     label: 'Jardim',
-    description: 'Folhas e natureza',
+    description: 'Natureza e organicidade',
     stylePrompt:
-      'Jardim OlieCare: paleta verde-oliva (#738251) e areia quente, luz dourada de fim de tarde, elementos botânicos suaves desfocados, atmosfera orgânica e materna',
+      'Template Jardim: varanda, quintal ou canto com plantas reais (folha de oliveira, costela-de-adão, luz filtrada). Paleta verde-oliva (#738251) e areia quente. Golden hour suave, tons Portra 400, atmosfera orgânica e materna sem floreio de stock.',
   },
   {
     id: 'impulso',
     label: 'Impulso',
-    description: 'Bold escuro',
+    description: 'Contraste profissional',
     stylePrompt:
-      'Impulso OlieCare: contraste elegante, fundo escuro com destaque em verde-oliva, luz dramática suave, energia confiante e moderna, espaço para texto em área escura',
+      'Template Impulso: consultório acolhedor ou home office sofisticado, fundo mais escuro (carvão/oliva profundo), um feixe de luz suave no rosto. Visual de marca B2B premium, confiança e modernidade, sem neon e sem tech cínico. Área esquerda mais escura e limpa para texto.',
   },
   {
     id: 'afeto',
     label: 'Afeto',
-    description: 'Suave com lua',
+    description: 'Vínculo íntimo',
     stylePrompt:
-      'Afeto OlieCare: tons sage e blush, luz íntima e aconchegante, momento terno entre cuidador e bebê, sensação noturna serena e emocional',
+      'Template Afeto: quarto aconchegante, luz íntima quente (abajur ou fim de tarde), tons sage e blush discreto. Colo, pele com pele responsável, olhar baixo entre cuidador e bebê. Silêncio emocional, sem pose de campanha publicitária.',
   },
 ];
 
 const BASE_IMAGE_RULES =
-  'Fotografia editorial autêntica para a marca OlieCare (oliecare.cloud), plataforma de cuidados com bebês no Brasil. ' +
-  'Cena REAL e humanizada: família brasileira diversa, gestos naturais, expressões genuínas, pele real, imperfeições naturais. ' +
-  'Evite poses de stock photo, evite look artificial ou plástico. ' +
-  'Paleta: verde-oliva (#738251), creme (#f9f6f1) e areia quente. ' +
-  'Temas: maternidade, paternidade, amamentação, sono do bebê, primeiros cuidados, vínculo afetivo. ' +
-  'Iluminação natural difusa, profundidade de campo rasa, tom acolhedor e esperançoso. ' +
-  'Esta imagem é APENAS o fundo fotográfico — o título e CTA serão sobrepostos depois pelo template. ' +
-  'Deixe cerca de 40% da composição com área mais limpa/desfocada para overlay de texto. ' +
-  'PROIBIDO: qualquer texto, letras, números, tipografia, watermark, logo, legenda ou UI na imagem. ' +
-  'PROIBIDO: mãos deformadas, dedos extras, bebê irrealista, proporções estranhas, hospital clichê, neonato em UTI sem contexto, stock pose olhando para câmera forçada. ' +
-  'Somente fotografia pura, alta qualidade.';
+  'PHOTOGRAPH of REAL PEOPLE — photorealistic documentary-editorial photography for OlieCare (oliecare.cloud), a Brazilian baby-care brand. ' +
+  'Shot as if by a professional lifestyle photographer on a full-frame camera (85mm or 35mm, natural window light, shallow depth of field, tack-sharp eyes). ' +
+  'Subjects: real Brazilian families and caregivers with diverse skin tones, natural hair, visible skin texture, pores, fine lines, baby with realistic proportions. ' +
+  'Candid moment in progress (not looking at camera, not smiling on command). Hands anatomically correct, five fingers, natural baby hold. ' +
+  'Wardrobe and set: linen, cotton, wood, ceramic, plants — cream #f9f6f1, olive #738251, warm sand. No logos on clothes. ' +
+  'Grade like Kodak Portra / Magnum: muted, warm, true-to-life, never plastic, never oversaturated. ' +
+  'This photo is ONLY the photographic background; title and CTA are overlaid later. Keep ~40% of the frame quieter/out of focus for text. ' +
+  'If the topic mentions apps or data, keep people as the hero; a phone may appear in the periphery, never a dashboard, UI, chart, or glowing screen as the subject. ' +
+  'NO text, letters, numbers, watermarks, logos, UI, or captions in the image. ' +
+  'NO CGI, 3D, illustration, anime, beauty-filter skin, stock-photo pose, extra limbs, uncanny baby, NICU cliché.';
 
 /** Negative prompt compartilhado (Pollinations e referência para providers). */
 export const IMAGE_NEGATIVE_PROMPT =
   'text, letters, words, numbers, typography, writing, captions, watermark, logo, signature, ' +
-  'label, title, subtitle, heading, font, alphabet, UI, interface, stock photo pose, plastic skin, ' +
-  'oversaturated, CGI, 3d render, deformed hands, extra fingers, uncanny baby, hospital cliché, ' +
-  'forced smile to camera, cartoon, anime, collage';
+  'label, title, subtitle, heading, font, alphabet, UI, interface, screenshot, dashboard, chart, ' +
+  'stock photo pose, plastic skin, beauty filter, oversaturated, CGI, 3d render, illustration, ' +
+  'deformed hands, extra fingers, uncanny baby, hospital cliché, NICU, forced smile to camera, ' +
+  'cartoon, anime, collage, mannequin, wax figure';
 
 type SceneCue = { pattern: RegExp; direction: string };
 
@@ -128,6 +128,11 @@ const SCENE_CUES: SceneCue[] = [
     pattern: /desenvolvimento|marco|engatinh|primeiro passo|brinc/i,
     direction:
       'Direção visual: marco de desenvolvimento — exploração segura, brincadeira e descoberta.',
+  },
+  {
+    pattern: /dado|aplicativo|app|tecnolog|digital|plataforma|prontu[aá]rio|teleconsult/i,
+    direction:
+      'Direção visual: cuidado humano em primeiro plano; se houver celular, ele é periférico e desligado de UI. Nunca tela, gráfico ou dashboard como assunto.',
   },
 ];
 
